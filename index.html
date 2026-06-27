@@ -550,7 +550,7 @@ function startSession(c) {
     revealedAnamnesis: new Set(),
     revealedPF: new Set(),
     revealedPenunjang: new Set(),
-    dd: (c.dd || []).map(d => ({ nama: d, status: 'none' })),
+    dd: [], // Dikosongkan — mahasiswa mencari sendiri melalui search bar DD
     tatalaksana: [],
     edukasi: [],
     // Stable shuffled orders
@@ -943,10 +943,14 @@ function matchQuery(input, items) {
 // ══════════════════════════════════
 //  FREE-TEXT INPUT RENDERER (shared)
 // ══════════════════════════════════
-function renderFreeTextSection({ body, title, hint, placeholder, allItems, revealedSet, onReveal, onNext, nextLabel, keyField }) {
+function renderFreeTextSection({ body, title, hint, placeholder, allItems, revealedSet, onReveal, onNext, nextLabel, keyField, itemLabel }) {
+  itemLabel = itemLabel || 'pertanyaan';
   const header = document.createElement('div');
   header.className = 'section-header';
-  header.innerHTML = `${title} <span>Ketik pertanyaan atau pemeriksaan yang ingin dilakukan</span>`;
+  const subLabel = itemLabel === 'pemeriksaan' ? 'Ketik pemeriksaan yang ingin dilakukan'
+    : itemLabel === 'penunjang' ? 'Ketik pemeriksaan penunjang yang ingin dipesan'
+    : 'Ketik pertanyaan yang ingin ditanyakan ke pasien';
+  header.innerHTML = `${title} <span>${subLabel}</span>`;
   body.appendChild(header);
 
   const hintEl = document.createElement('div');
@@ -988,7 +992,7 @@ function renderFreeTextSection({ body, title, hint, placeholder, allItems, revea
   }
   rebuildRevealedList();
 
-  // ── Submit handler
+  // ── Submit handler — hanya reveal SATU item terbaik per pertanyaan
   function submit() {
     const val = inp.value.trim();
     if (!val) return;
@@ -997,29 +1001,58 @@ function renderFreeTextSection({ body, title, hint, placeholder, allItems, revea
     const mapped = unrevealedItems.map(i => ({ ...i, key: i[keyField] }));
     const matched = matchQuery(val, mapped);
 
-    // Remove old no-match message
-    const old = body.querySelector('.no-match-msg');
-    if (old) old.remove();
+    // Remove old no-match / already-found messages
+    body.querySelectorAll('.no-match-msg').forEach(el => el.remove());
 
     if (matched.length === 0) {
       const msg = document.createElement('div');
       msg.className = 'no-match-msg';
-      msg.textContent = `"${val}" — tidak ada temuan yang cocok untuk pertanyaan ini.`;
+      msg.textContent = `"${val}" — tidak ada temuan yang cocok. Coba kata kunci lain.`;
       revealedListEl.parentNode.insertBefore(msg, revealedListEl);
     } else {
-      matched.forEach(item => {
-        revealedSet.add(item[keyField]);
-        if (item.signifikan || item.isSig) {
-          state.significantFound++;
-        }
-        onReveal(item);
+      // Ambil hanya SATU item terbaik: yang paling spesifik (key terpendek = paling tepat)
+      const best = matched.reduce((a, b) => {
+        // Prioritaskan item yang key-nya paling mirip dengan input
+        const scoreA = specificityScore(val, a.key);
+        const scoreB = specificityScore(val, b.key);
+        return scoreB > scoreA ? b : a;
       });
+
+      revealedSet.add(best[keyField]);
+      if (best.signifikan || best.isSig) {
+        state.significantFound++;
+      }
+      onReveal(best);
       updateProgress();
       rebuildRevealedList();
+
+      // Jika masih ada hasil lain, berikan petunjuk
+      if (matched.length > 1) {
+        const hint = document.createElement('div');
+        hint.className = 'no-match-msg';
+        hint.style.borderColor = 'rgba(108,114,255,0.3)';
+        hint.style.color = 'var(--accent2)';
+        hint.textContent = `💡 Ada ${matched.length - 1} ${itemLabel} terkait lainnya. Tanyakan lebih spesifik untuk mendapatkannya.`;
+        revealedListEl.parentNode.insertBefore(hint, revealedListEl);
+      }
     }
 
     inp.value = '';
     inp.focus();
+  }
+
+  // Hitung skor spesifisitas: berapa banyak karakter input yang match dengan key
+  function specificityScore(input, key) {
+    const normInput = normalizeText(input);
+    const normKey = normalizeText(key);
+    const inputTokens = normInput.split(' ').filter(t => t.length > 1);
+    let score = 0;
+    inputTokens.forEach(t => { if (normKey.includes(t)) score += t.length; });
+    // Bonus jika key mengandung input secara keseluruhan
+    if (normKey.includes(normInput)) score += normInput.length * 2;
+    // Penalti untuk key yang terlalu panjang (terlalu generik)
+    score -= normKey.length * 0.01;
+    return score;
   }
 
   btn.onclick = submit;
@@ -1059,6 +1092,7 @@ function renderAnamnesisStep(body) {
     onNext: () => { state.step = 'pf'; renderSession(); },
     nextLabel: 'Cukup – Lanjut ke PF →',
     keyField: 'pertanyaan',
+    itemLabel: 'pertanyaan',
   });
 }
 
@@ -1084,6 +1118,197 @@ function renderPFStep(body) {
     onNext: () => { state.step = 'dd1'; renderSession(); },
     nextLabel: 'Lanjut ke DD Awal →',
     keyField: 'nama',
+    itemLabel: 'pemeriksaan',
+  });
+}
+
+// ══════════════════════════════════
+//  POOL PENYAKIT UNIVERSAL (DD)
+// ══════════════════════════════════
+// Pool besar: penyakit + sinonim/kata kunci untuk searching
+const DISEASE_POOL = [
+  // ── Endokrin & Metabolik
+  { nama: "DM Tipe 1", keys: ["diabetes melitus tipe 1","dm1","juvenile diabetes","insulin dependent","iddm","autoimun pankreas"] },
+  { nama: "DM Tipe 2", keys: ["diabetes melitus tipe 2","dm2","noninsulin dependent","niddm","kencing manis","gula darah tinggi","hiperglikemia kronik"] },
+  { nama: "Diabetes Insipidus", keys: ["diabetes insipidus","di","poliuri","polidipsi","polifagi tidak","ADH","vasopressin","urin encer"] },
+  { nama: "Sindrom Metabolik", keys: ["sindrom metabolik","metabolic syndrome","obesitas sentral","resistensi insulin","dislipidemia hipertensi gula"] },
+  { nama: "Obesitas", keys: ["obesitas","kegemukan","BMI tinggi","IMT tinggi","overweight","berat badan berlebih"] },
+  { nama: "Dislipidemia", keys: ["dislipidemia","kolesterol tinggi","hiperlipidemia","hiperkolesterolemia","LDL tinggi","HDL rendah","trigliserida tinggi"] },
+  { nama: "Hipotiroid", keys: ["hipotiroid","hypothyroid","TSH tinggi","FT4 rendah","gondok","tiroid kurang aktif","miksedema","kelenjar tiroid"] },
+  { nama: "Hipertiroid", keys: ["hipertiroid","hyperthyroid","TSH rendah","FT4 tinggi","graves","tiroid terlalu aktif","tirotoksikosis","exophthalmus"] },
+  { nama: "Tiroiditis", keys: ["tiroiditis","hashimoto","tiroid inflamasi","tiroid nyeri"] },
+  { nama: "Nodular Tiroid", keys: ["nodul tiroid","nodular tiroid","gondok noduler","struma nodosa"] },
+  { nama: "Sindrom Cushing", keys: ["sindrom cushing","kortisol berlebih","moon face","buffalo hump","kortisol tinggi","ACTH","hiperkortisol","obesitas sentral steroid"] },
+  { nama: "Insufisiensi Adrenal", keys: ["insufisiensi adrenal","addison","kortisol rendah","adrenal kurang","hipotensi postural","hiperpigmentasi"] },
+  { nama: "Hiperparatiroid", keys: ["hiperparatiroid","PTH tinggi","hiperkalsemia","batu ginjal kalsium","osteoporosis"] },
+  { nama: "Hipoparatiroid", keys: ["hipoparatiroid","hipokalsemia","PTH rendah","tetani","trousseau","chvostek"] },
+  { nama: "Sindrom PCOS", keys: ["PCOS","polycystic ovary","haid tidak teratur","jerawat","hirsutisme","anovulasi","infertilitas"] },
+  { nama: "Akromegali", keys: ["akromegali","growth hormone berlebih","GH","tangan kaki membesar","gigantisme dewasa"] },
+  { nama: "Gout / Hiperurisemia", keys: ["gout","asam urat tinggi","hiperurisemia","podagra","artritis gout","nyeri sendi asam urat"] },
+  { nama: "Hipertensi Esensial", keys: ["hipertensi esensial","darah tinggi primer","hipertensi primer","tekanan darah tinggi","HTN"] },
+  { nama: "Hipertensi Sekunder", keys: ["hipertensi sekunder","hipertensi renal","aldosteronisme primer","feokromositoma","cushing hipertensi"] },
+  { nama: "Hipoglikemia", keys: ["hipoglikemia","gula darah rendah","glukosa rendah","pusing lemas dingin berkeringat","tidak sadar gula"] },
+
+  // ── Kardiovaskular
+  { nama: "Angina Pectoris", keys: ["angina pectoris","nyeri dada angina","angina stabil","angina tidak stabil","angina unstable","iskemik miokard"] },
+  { nama: "Infark Miokard Akut (IMA)", keys: ["IMA","serangan jantung","infark miokard","STEMI","NSTEMI","nyeri dada berat","troponin naik"] },
+  { nama: "Gagal Jantung", keys: ["gagal jantung","heart failure","HF","sesak napas orthopnea","edema bilateral","kardiomegali","EF rendah"] },
+  { nama: "Aritmia", keys: ["aritmia","gangguan irama jantung","fibrilasi atrium","AF","flutter","takikardia","bradikardia"] },
+  { nama: "Hipertensi Krisis", keys: ["krisis hipertensi","hipertensi urgensi","hipertensi emergensi","TD sangat tinggi","TD >180"] },
+  { nama: "Perikarditis", keys: ["perikarditis","radang perikardium","nyeri dada pleuritik","friction rub"] },
+  { nama: "Efusi Perikardium", keys: ["efusi perikardium","tamponade jantung","pericardial effusion","Beck triad"] },
+  { nama: "Kardiomiopati", keys: ["kardiomiopati","cardiomyopathy","otot jantung melemah","dilatasi jantung"] },
+  { nama: "Endokarditis Infektif", keys: ["endokarditis","infeksi katup jantung","Osler","Roth spots","Janeway","murmur demam"] },
+  { nama: "Penyakit Jantung Reumatik", keys: ["penyakit jantung reumatik","PJR","rheumatic heart disease","mitral stenosis","strep"] },
+  { nama: "DVT (Trombosis Vena Dalam)", keys: ["DVT","trombosis vena dalam","deep vein thrombosis","kaki bengkak merah","Homan sign"] },
+  { nama: "Emboli Paru", keys: ["emboli paru","pulmonary embolism","PE","sesak tiba tiba","D-dimer tinggi","pleuritik"] },
+
+  // ── Respirasi
+  { nama: "Tuberkulosis Paru (TB)", keys: ["tuberkulosis","TB paru","batuk kronis","BTA positif","Mycobacterium","dahak darah","endemis TB","keringat malam","penurunan BB","batuk lama","kavitas paru"] },
+  { nama: "Pneumonia", keys: ["pneumonia","radang paru","konsolidasi paru","demam batuk produktif","bronkopneumonia","infiltrat paru"] },
+  { nama: "Bronkitis Akut", keys: ["bronkitis akut","batuk produktif akut","infeksi saluran napas bawah","trakeobronkitis"] },
+  { nama: "Bronkitis Kronis", keys: ["bronkitis kronis","batuk produktif >3 bulan","PPOK bronkitis","hipersekresi mukus"] },
+  { nama: "PPOK (COPD)", keys: ["PPOK","COPD","penyakit paru obstruktif","chronic obstructive","emphysema","bronkitis kronis PPOK","FEV1 rendah"] },
+  { nama: "Asma Bronkial", keys: ["asma","asthma","bronkospasme","wheezing","sesak episodik","reversibel","bronkodilator","alergi napas"] },
+  { nama: "Efusi Pleura", keys: ["efusi pleura","cairan pleura","pleural effusion","redup perkusi","suara napas menurun"] },
+  { nama: "Pneumothoraks", keys: ["pneumothoraks","pneumothorax","paru kolaps","sesak tiba tiba","hipersonor"] },
+  { nama: "Abses Paru", keys: ["abses paru","kavitas paru","dahak berbau","nekrosis paru"] },
+  { nama: "Kanker Paru", keys: ["kanker paru","karsinoma paru","tumor paru","lung cancer","hemoptisis penurunan BB perokok"] },
+  { nama: "Bronkiektasis", keys: ["bronkiektasis","bronchiectasis","batuk kronis dahak banyak","clubbing fingers"] },
+  { nama: "ISPA (Infeksi Saluran Napas Atas)", keys: ["ISPA","infeksi saluran napas atas","common cold","faringitis","tonsilitis","rhinitis","salesma"] },
+  { nama: "COVID-19", keys: ["COVID-19","SARS-CoV-2","corona","anosmia","ageusia","sesak demam batuk pandemi"] },
+
+  // ── Genitourinaria & Ginjal
+  { nama: "ISK (Infeksi Saluran Kemih)", keys: ["ISK","infeksi saluran kemih","UTI","disuria","frekuensi kencing","nyeri berkemih","urin keruh"] },
+  { nama: "Pielonefritis", keys: ["pielonefritis","infeksi ginjal","demam nyeri pinggang urin leukosit","pyelonephritis"] },
+  { nama: "Glomerulonefritis", keys: ["glomerulonefritis","glomerulonephritis","hematuria proteinuria","sindrom nefritik","nefritis"] },
+  { nama: "Sindrom Nefrotik", keys: ["sindrom nefrotik","proteinuria masif","edema anasarka","hipoalbuminemia","hiperlipidemia ginjal"] },
+  { nama: "Gagal Ginjal Akut (AKI)", keys: ["AKI","acute kidney injury","gagal ginjal akut","oliguria","kreatinin naik tiba-tiba"] },
+  { nama: "CKD (Gagal Ginjal Kronik)", keys: ["CKD","chronic kidney disease","gagal ginjal kronis","uremia","kreatinin tinggi lama","hemodialisis"] },
+  { nama: "Ureterolitiasis", keys: ["ureterolitiasis","batu ureter","kolik ureter","nyeri pinggang menjalar","batu saluran kemih"] },
+  { nama: "Nefrolitiasis", keys: ["nefrolitiasis","batu ginjal","renal calculi","kolik renal","hematuria nyeri pinggang"] },
+  { nama: "Kolik Renal", keys: ["kolik renal","kolik ginjal","nyeri kolik pinggang","nyeri hilang timbul pinggang","batu kolik"] },
+  { nama: "Vesikolitiasis", keys: ["vesikolitiasis","batu kandung kemih","disuria hematuria","nyeri suprapubik"] },
+  { nama: "BPH (Hiperplasia Prostat Jinak)", keys: ["BPH","benign prostatic hyperplasia","hiperplasia prostat","sulit kencing","pancaran lemah","nocturia","retensi urin"] },
+  { nama: "Karsinoma Prostat", keys: ["karsinoma prostat","kanker prostat","PSA tinggi","prostate cancer"] },
+  { nama: "Orkitis / Epididimitis", keys: ["orkitis","epididimitis","nyeri testis","testis bengkak","infeksi testis"] },
+  { nama: "Torsio Testis", keys: ["torsio testis","testicular torsion","nyeri testis tiba-tiba","prehn sign negatif"] },
+  { nama: "Inkontinensia Urin", keys: ["inkontinensia urin","ngompol dewasa","urge incontinence","stress incontinence"] },
+  { nama: "Hematuria", keys: ["hematuria","darah dalam urin","urin merah","kencing berdarah"] },
+
+  // ── Gastroenterologi
+  { nama: "GERD", keys: ["GERD","gastroesophageal reflux","refluks asam","heartburn","regurgitasi","epigastrium panas"] },
+  { nama: "Gastritis", keys: ["gastritis","radang lambung","nyeri epigastrium","maag","Helicobacter pylori"] },
+  { nama: "Tukak Peptik", keys: ["tukak peptik","ulkus peptikum","peptic ulcer","ulkus duodenum","ulkus lambung"] },
+  { nama: "Pankreatitis Akut", keys: ["pankreatitis akut","nyeri epigastrium menjalar punggung","amilase lipase tinggi","Grey Turner","Cullen"] },
+  { nama: "Kolelitiasis", keys: ["kolelitiasis","batu empedu","gallstone","nyeri kolik bilier","Murphy sign"] },
+  { nama: "Kolesistitis", keys: ["kolesistitis","radang kandung empedu","nyeri RUQ","demam","Murphy sign positif"] },
+  { nama: "Hepatitis", keys: ["hepatitis","radang hati","hepatitis A B C","ikterus","SGOT SGPT naik","jaundice"] },
+  { nama: "Sirosis Hepatis", keys: ["sirosis hepatis","liver cirrhosis","hati mengeras","asites","spider nevi","varises esofagus","hepatomegali"] },
+  { nama: "Apendisitis", keys: ["apendisitis","radang usus buntu","McBurney","Rovsing","nyeri RLQ","rebound tenderness"] },
+  { nama: "Peritonitis", keys: ["peritonitis","radang peritoneum","perut papan","defense muscular","rigiditas abdomen"] },
+  { nama: "Ileus Obstruktif", keys: ["ileus obstruktif","sumbatan usus","perut kembung","tidak BAB","bising usus tinggi"] },
+  { nama: "Kolitis Ulseratif", keys: ["kolitis ulseratif","ulcerative colitis","BAB darah lendir","nyeri perut kronik","hematochezia"] },
+  { nama: "Crohn Disease", keys: ["crohn","penyakit Crohn","radang usus kronik","skip lesion","granuloma usus"] },
+  { nama: "Divertikulitis", keys: ["divertikulitis","nyeri LLQ","demam perubahan BAB","diverticulitis"] },
+  { nama: "Kanker Kolorektal", keys: ["kanker kolon","kanker rektal","karsinoma kolorektal","perubahan BAB berdarah","massa abdomen"] },
+
+  // ── Neurologi
+  { nama: "Stroke Iskemik", keys: ["stroke iskemik","infark serebri","stroke non hemoragik","hemiplegia mendadak","afasia mendadak","CT scan iskemik"] },
+  { nama: "Stroke Hemoragik", keys: ["stroke hemoragik","perdarahan intraserebral","ICH","perdarahan otak","penurunan kesadaran mendadak"] },
+  { nama: "TIA (Transient Ischemic Attack)", keys: ["TIA","serangan iskemik sementara","transient ischemic attack","gejala stroke hilang","RIND"] },
+  { nama: "Meningitis", keys: ["meningitis","radang selaput otak","kaku kuduk","kernig","brudzinski","liquor cerebrospinal"] },
+  { nama: "Ensefalitis", keys: ["ensefalitis","radang otak","demam penurunan kesadaran","ensefalopati infeksi"] },
+  { nama: "Epilepsi", keys: ["epilepsi","kejang","seizure","bangkitan epileptik","status epileptikus","EEG"] },
+  { nama: "Migren", keys: ["migren","migraine","nyeri kepala berdenyut","aura","fotofobia","fonofobia","nyeri separuh kepala"] },
+  { nama: "Tension Type Headache", keys: ["tension headache","TTH","nyeri kepala tegang","seperti diikat","bilateral"] },
+  { nama: "Cluster Headache", keys: ["cluster headache","nyeri kepala cluster","nyeri periorbital","lakrimasi hidung tersumbat"] },
+  { nama: "Neuropati Perifer", keys: ["neuropati perifer","peripheral neuropathy","kesemutan kaki","kebas ekstremitas","polineuropati"] },
+  { nama: "Parkinson", keys: ["parkinson","tremor saat istirahat","rigiditas","bradikinesia","festinasi","pill rolling"] },
+  { nama: "Demensia Alzheimer", keys: ["alzheimer","demensia","pikun","penurunan kognitif progresif","lupa"] },
+  { nama: "Multiple Sclerosis", keys: ["multiple sclerosis","MS","demielinisasi","lesi otak","relapsing remitting"] },
+  { nama: "Bell's Palsy", keys: ["bell palsy","parese wajah perifer","wajah mencong","parese N VII","lagoftalmos"] },
+  { nama: "Vertigo (BPPV)", keys: ["BPPV","benign paroxysmal positional vertigo","vertigo perifer","Dix Hallpike","pusing berputar"] },
+  { nama: "Vertigo Sentral", keys: ["vertigo sentral","vertigo otak","nystagmus sentral","stroke serebelum"] },
+  { nama: "Sindrom Guillain-Barré", keys: ["Guillain Barre","GBS","kelemahan ascending","arefleksia","post infeksi"] },
+  { nama: "Miastenia Gravis", keys: ["miastenia gravis","myasthenia gravis","kelemahan otot fluktuatif","ptosis","diplopia","fatigue"] },
+
+  // ── Reumatologi & Muskuloskeletal
+  { nama: "Rheumatoid Arthritis", keys: ["rheumatoid arthritis","RA","artritis simetris","swan neck","kaku pagi","RF positif","anti CCP"] },
+  { nama: "Osteoartritis", keys: ["osteoartritis","OA","nyeri sendi kronis","krepitasi","sendi lutut pinggul","Heberden"] },
+  { nama: "Artritis Gout", keys: ["artritis gout","podagra","nyeri MTP 1","sendi merah panas gout","asam urat tinggi"] },
+  { nama: "Lupus (SLE)", keys: ["lupus","SLE","systemic lupus","butterfly rash","malar rash","antinuklear antibodi","ANA","lupus nefritis"] },
+  { nama: "Osteoporosis", keys: ["osteoporosis","densitas tulang rendah","T score","fraktur kompresi","tulang keropos"] },
+  { nama: "Artritis Septik", keys: ["artritis septik","septic arthritis","infeksi sendi","sendi merah panas demam"] },
+  { nama: "Sindrom Sjogren", keys: ["Sjogren","mata kering","mulut kering","xerophthalmia","xerostomia","sicca syndrome"] },
+  { nama: "Fibromialgia", keys: ["fibromialgia","nyeri otot difus","tender points","fatigue kronik","fibromyalgia"] },
+  { nama: "Spondilitis Ankilosa", keys: ["spondilitis ankilosa","ankylosing spondylitis","nyeri punggung kronik muda","HLA-B27","bamboo spine"] },
+
+  // ── Infeksi & Hematologi
+  { nama: "Sepsis", keys: ["sepsis","infeksi sistemik","SIRS","organ disfungsi","demam takikardia hipotensi"] },
+  { nama: "Dengue / DBD", keys: ["dengue","DBD","demam berdarah","trombositopenia","NS1","petechiae","tourniquet test"] },
+  { nama: "Malaria", keys: ["malaria","Plasmodium","demam periodik","anemia","splenomegali","riwayat endemis malaria"] },
+  { nama: "Tifoid", keys: ["tifoid","demam tifoid","typhoid","Salmonella","demam naik turun","rose spots","Widal"] },
+  { nama: "HIV/AIDS", keys: ["HIV","AIDS","imunodefisiensi","CD4 rendah","infeksi oportunistik","antiretroviral"] },
+  { nama: "Anemia Defisiensi Besi", keys: ["anemia defisiensi besi","ADB","hemoglobin rendah","konjungtiva pucat","MCV MCH rendah","ferritin rendah"] },
+  { nama: "Anemia Hemolitik", keys: ["anemia hemolitik","hemolisis","bilirubin tak langsung tinggi","Coombs test"] },
+  { nama: "Anemia Aplastik", keys: ["anemia aplastik","aplastic anemia","pansitopenia","sumsum tulang kosong"] },
+  { nama: "Leukemia", keys: ["leukemia","kanker darah","leukosit sangat tinggi","blast sel","ALL","AML","CLL","CML"] },
+  { nama: "Limfoma", keys: ["limfoma","lymphoma","pembesaran kelenjar getah bening","B symptoms","Hodgkin","Non-Hodgkin"] },
+  { nama: "Trombositopenia", keys: ["trombositopenia","trombosit rendah","ITP","perdarahan petekie purpura","platelet rendah"] },
+  { nama: "Hemofilia", keys: ["hemofilia","haemophilia","gangguan pembekuan darah","faktor VIII IX","hemartrosis"] },
+  { nama: "Leptospirosis", keys: ["leptospirosis","Leptospira","demam myalgia ikterus","Weil disease","banjir tikus"] },
+
+  // ── Geriatri
+  { nama: "Frailty (Kerapuhan)", keys: ["frailty","kerapuhan","lansia lemah","sarcopenia frailty","Fried criteria","low energy"] },
+  { nama: "Sarcopenia", keys: ["sarcopenia","massa otot kurang","kekuatan otot menurun","lansia lemah","DEXA otot"] },
+  { nama: "Delirium", keys: ["delirium","confusion mendadak","penurunan kesadaran fluktuatif","agitasi mendadak lansia"] },
+  { nama: "Demensia Vaskular", keys: ["demensia vaskular","vascular dementia","kognitif post stroke","penurunan kognitif step wise"] },
+  { nama: "Inkontinensia Lansia", keys: ["inkontinensia lansia","ngompol tua","urge incontinence lansia","overflow incontinence"] },
+  { nama: "Jatuh (Fall) pada Lansia", keys: ["jatuh lansia","fall risk","risiko jatuh","balance lansia","tinetti"] },
+
+  // ── Psikiatri
+  { nama: "Depresi Mayor", keys: ["depresi","depression","MDD","mood turun","anhedonia","insomnia kelelahan","sedih berkepanjangan"] },
+  { nama: "Gangguan Cemas (GAD)", keys: ["anxiety","cemas","GAD","generalized anxiety","khawatir berlebihan","palpitasi cemas"] },
+  { nama: "Gangguan Panik", keys: ["panic disorder","serangan panik","dada berdebar tiba-tiba","sesak napas cemas","takut mati mendadak"] },
+  { nama: "Skizofrenia", keys: ["skizofrenia","schizophrenia","halusinasi","delusi","psikosis","waham"] },
+  { nama: "Bipolar", keys: ["bipolar","mania","depresi mania","mood episode","hypomania"] },
+  { nama: "PTSD", keys: ["PTSD","post traumatic stress","trauma psikologis","flashback","nightmares","avoidance"] },
+  { nama: "Gangguan Somatoform", keys: ["somatoform","konversi","gejala tanpa sebab organik","psikosomatik"] },
+
+  // ── Dermatologi
+  { nama: "Dermatitis Atopik", keys: ["dermatitis atopik","eczema","eksim","gatal kulit atopik","riwayat alergi"] },
+  { nama: "Psoriasis", keys: ["psoriasis","plak kemerahan bersisik","Koebner","sendi psoriasis"] },
+  { nama: "Urtikaria", keys: ["urtikaria","biduran","hives","gatal bengkak merah","angioedema"] },
+  { nama: "Selulitis", keys: ["selulitis","cellulitis","infeksi kulit dalam","kulit merah hangat bengkak","tidak berfluktuasi"] },
+  { nama: "Herpes Zoster", keys: ["herpes zoster","cacar ular","ruam dermatom","nyeri terbakar sebelum ruam","VZV"] },
+  { nama: "Tinea", keys: ["tinea","jamur kulit","ringworm","kurap","gatal bersisik sirkuler","KOH positif"] },
+  { nama: "Kandidiasis", keys: ["kandidiasis","candidiasis","jamur Candida","plak putih","sariawan","keputihan putih kental"] },
+  { nama: "Acne Vulgaris", keys: ["jerawat","acne vulgaris","komedo","papul pustul wajah","propionibacterium"] },
+  { nama: "Steven Johnson Syndrome", keys: ["SJS","Stevens Johnson","TEN","reaksi obat berat","kulit terkelupas","mukosa"] },
+
+  // ── Onkologi
+  { nama: "Kanker Serviks", keys: ["kanker serviks","cervical cancer","HPV","pap smear","perdarahan coital","IVA"] },
+  { nama: "Kanker Payudara", keys: ["kanker payudara","breast cancer","massa payudara","peau d'orange","nipple discharge"] },
+  { nama: "Kanker Ovarium", keys: ["kanker ovarium","ovarian cancer","massa pelvis","CA-125","ascites"] },
+  { nama: "Kanker Lambung", keys: ["kanker lambung","gastric cancer","Virchow node","epigastrium massa","hematemesis massa"] },
+  { nama: "Kanker Hati", keys: ["hepatocellular carcinoma","HCC","kanker hati","AFP tinggi","sirosis kanker","massa hati"] },
+  { nama: "Melanoma", keys: ["melanoma","kanker kulit","lesi pigmen asimetris","ABCDE melanoma"] },
+];
+
+// Cari penyakit dari pool berdasarkan query
+function searchDiseasePool(query) {
+  if (!query || query.length < 2) return [];
+  const norm = normalizeText(query);
+  const tokens = norm.split(' ').filter(t => t.length > 1);
+  
+  return DISEASE_POOL.filter(d => {
+    const namaNorm = normalizeText(d.nama);
+    if (namaNorm.includes(norm)) return true;
+    return d.keys.some(k => {
+      const knorm = normalizeText(k);
+      return knorm.includes(norm) || norm.includes(knorm) || tokens.some(t => t.length > 2 && knorm.includes(t));
+    });
   });
 }
 
@@ -1096,9 +1321,18 @@ function renderDDStep(body, isFinal) {
   const header = document.createElement('div');
   header.className = 'section-header';
   header.innerHTML = isFinal
-    ? `Diagnosis Diferensial & Diagnosis Kerja <span>Eliminasi, tambahkan, dan tetapkan Dx</span>`
-    : `Diagnosis Diferensial Awal <span>Pilih DD yang mungkin, klik lagi untuk eliminasi</span>`;
+    ? `Diagnosis Diferensial & Diagnosis Kerja <span>Tetapkan Dx Kerja, eliminasi yang tidak sesuai</span>`
+    : `Diagnosis Diferensial Awal <span>Cari & pilih penyakit yang mungkin, klik lagi untuk eliminasi</span>`;
   body.appendChild(header);
+  
+  // Instruksi
+  const instruksi = document.createElement('div');
+  instruksi.className = 'hint-text';
+  instruksi.style.marginBottom = '14px';
+  instruksi.innerHTML = isFinal
+    ? '1× klik = Dipilih (biru) · 2× klik = Diagnosis Kerja (hijau) · 3× klik = Dieliminasi (merah) · 4× = Reset'
+    : '1× klik = Dipilih (biru) · 2× klik = Dieliminasi (merah) · 3× = Reset';
+  body.appendChild(instruksi);
   
   // Legend
   const legend = document.createElement('div');
@@ -1106,49 +1340,143 @@ function renderDDStep(body, isFinal) {
   legend.innerHTML = `
     <span class="dd-legend selected">■ Dipilih</span>
     <span class="dd-legend eliminated">■ Dieliminasi</span>
-    ${isFinal ? '<span class="dd-legend dx">■ Diagnosis Kerja (Dx)</span>' : ''}
+    ${isFinal ? '<span class="dd-legend dx">★ Diagnosis Kerja</span>' : ''}
   `;
   body.appendChild(legend);
-  
+
+  // ── SEARCH BAR untuk mencari penyakit dari pool besar
+  const searchWrap = document.createElement('div');
+  searchWrap.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;';
+  const searchInp = document.createElement('input');
+  searchInp.id = 'dd-search-inp';
+  searchInp.className = 'query-input';
+  searchInp.type = 'text';
+  searchInp.placeholder = 'Cari penyakit... (cth: pneumonia, gagal ginjal, anemia, ISK, TB)';
+  searchInp.autocomplete = 'off';
+  searchWrap.appendChild(searchInp);
+  body.appendChild(searchWrap);
+
+  // Dropdown hasil pencarian
+  const searchResults = document.createElement('div');
+  searchResults.id = 'dd-search-results';
+  searchResults.style.cssText = 'display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;max-height:220px;overflow-y:auto;margin-bottom:12px;';
+  body.appendChild(searchResults);
+
+  // ── Grid DD yang sudah dipilih
   const grid = document.createElement('div');
   grid.className = 'dd-grid';
-  
-  state.sessionData.dd.forEach((item, idx) => {
-    const chip = document.createElement('div');
-    chip.className = 'dd-chip';
-    if (item.status === 'selected') chip.classList.add('selected');
-    else if (item.status === 'eliminated') chip.classList.add('eliminated');
-    else if (item.status === 'dx') chip.classList.add('dx');
-    chip.textContent = item.nama;
-    
-    chip.onclick = () => {
-      const cur = state.sessionData.dd[idx].status;
-      if (!isFinal) {
-        // dd1: toggle none → selected → eliminated → none
-        if (cur === 'none') state.sessionData.dd[idx].status = 'selected';
-        else if (cur === 'selected') state.sessionData.dd[idx].status = 'eliminated';
-        else state.sessionData.dd[idx].status = 'none';
-      } else {
-        // dd2: none → selected → dx → eliminated → none
-        if (cur === 'none') state.sessionData.dd[idx].status = 'selected';
-        else if (cur === 'selected') state.sessionData.dd[idx].status = 'dx';
-        else if (cur === 'dx') state.sessionData.dd[idx].status = 'eliminated';
-        else state.sessionData.dd[idx].status = 'none';
-      }
-      renderSession();
-    };
-    
-    grid.appendChild(chip);
-  });
-  
+  grid.id = 'dd-chip-grid';
   body.appendChild(grid);
-  
-  // Add custom DD
-  const addRow = document.createElement('div');
-  addRow.className = 'dd-add-row';
-  addRow.innerHTML = `<input id="dd-input" placeholder="Tambah DD lain…"><button class="btn-secondary" onclick="addCustomDD()">Tambah</button>`;
-  body.appendChild(addRow);
-  
+
+  // Fungsi render grid chip
+  function renderChips() {
+    grid.innerHTML = '';
+    state.sessionData.dd.forEach((item, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'dd-chip';
+      if (item.status === 'selected') chip.classList.add('selected');
+      else if (item.status === 'eliminated') chip.classList.add('eliminated');
+      else if (item.status === 'dx') chip.classList.add('dx');
+
+      // Label dengan ikon status
+      const statusIcon = item.status === 'dx' ? '★ ' : item.status === 'eliminated' ? '✗ ' : item.status === 'selected' ? '✓ ' : '';
+      chip.textContent = statusIcon + item.nama;
+      
+      chip.onclick = () => {
+        const cur = state.sessionData.dd[idx].status;
+        if (!isFinal) {
+          if (cur === 'none') state.sessionData.dd[idx].status = 'selected';
+          else if (cur === 'selected') state.sessionData.dd[idx].status = 'eliminated';
+          else state.sessionData.dd[idx].status = 'none';
+        } else {
+          if (cur === 'none') state.sessionData.dd[idx].status = 'selected';
+          else if (cur === 'selected') state.sessionData.dd[idx].status = 'dx';
+          else if (cur === 'dx') state.sessionData.dd[idx].status = 'eliminated';
+          else state.sessionData.dd[idx].status = 'none';
+        }
+        renderChips();
+      };
+      
+      grid.appendChild(chip);
+    });
+  }
+  renderChips();
+
+  // Fungsi render hasil search
+  function renderSearchResults(query) {
+    searchResults.innerHTML = '';
+    if (!query || query.length < 2) {
+      searchResults.style.display = 'none';
+      return;
+    }
+    const results = searchDiseasePool(query);
+    if (results.length === 0) {
+      searchResults.style.display = 'block';
+      const noResult = document.createElement('div');
+      noResult.style.cssText = 'padding:12px 16px;color:var(--muted);font-size:0.85rem;';
+      noResult.textContent = 'Tidak ditemukan. Ketik nama penyakit lain atau klik "Tambah" di bawah.';
+      searchResults.appendChild(noResult);
+      return;
+    }
+    searchResults.style.display = 'block';
+    results.slice(0, 15).forEach(disease => {
+      const already = state.sessionData.dd.some(d => d.nama.toLowerCase() === disease.nama.toLowerCase());
+      const row = document.createElement('div');
+      row.style.cssText = `padding:10px 16px;cursor:${already ? 'default' : 'pointer'};display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);font-size:0.87rem;${already ? 'opacity:0.5;' : ''}`;
+      row.innerHTML = `<span>${disease.nama}</span>${already ? '<span style="font-size:0.75rem;color:var(--muted)">Sudah ada</span>' : '<span style="font-size:0.75rem;color:var(--accent2)">+ Tambah</span>'}`;
+      if (!already) {
+        row.onmouseenter = () => row.style.background = 'rgba(108,114,255,0.08)';
+        row.onmouseleave = () => row.style.background = '';
+        row.onclick = () => {
+          state.sessionData.dd.push({ nama: disease.nama, status: 'none' });
+          searchInp.value = '';
+          searchResults.style.display = 'none';
+          renderChips();
+        };
+      }
+      searchResults.appendChild(row);
+    });
+    if (results.length > 15) {
+      const more = document.createElement('div');
+      more.style.cssText = 'padding:8px 16px;color:var(--muted);font-size:0.78rem;text-align:center;';
+      more.textContent = `+${results.length - 15} hasil lain. Persingkat kata kunci.`;
+      searchResults.appendChild(more);
+    }
+  }
+
+  searchInp.addEventListener('input', () => renderSearchResults(searchInp.value.trim()));
+  searchInp.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { searchResults.style.display = 'none'; searchInp.value = ''; }
+    // Enter tambah kustom jika tidak ada hasil
+    if (e.key === 'Enter') {
+      const val = searchInp.value.trim();
+      if (!val) return;
+      const results = searchDiseasePool(val);
+      if (results.length === 0) {
+        const already = state.sessionData.dd.some(d => d.nama.toLowerCase() === val.toLowerCase());
+        if (!already) {
+          state.sessionData.dd.push({ nama: val, status: 'none' });
+          renderChips();
+        }
+        searchInp.value = '';
+        searchResults.style.display = 'none';
+      } else if (results.length === 1) {
+        const already = state.sessionData.dd.some(d => d.nama.toLowerCase() === results[0].nama.toLowerCase());
+        if (!already) {
+          state.sessionData.dd.push({ nama: results[0].nama, status: 'none' });
+          renderChips();
+        }
+        searchInp.value = '';
+        searchResults.style.display = 'none';
+      }
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!searchWrap.contains(e.target) && !searchResults.contains(e.target)) {
+      searchResults.style.display = 'none';
+    }
+  }, { once: false });
+
   const actionBar = document.createElement('div');
   actionBar.className = 'action-bar';
   
@@ -1164,7 +1492,7 @@ function renderDDStep(body, isFinal) {
     btnNext.textContent = 'Lanjut ke Tatalaksana →';
     btnNext.onclick = () => {
       if (!state.sessionData.dd.some(d => d.status === 'dx')) {
-        alert('Tetapkan minimal satu Diagnosis Kerja (klik chip dua kali sampai hijau)');
+        alert('Tetapkan minimal satu Diagnosis Kerja (klik chip dua kali sampai bintang hijau)');
         return;
       }
       state.step = 'tatalaksana';
@@ -1177,7 +1505,9 @@ function renderDDStep(body, isFinal) {
 }
 
 function addCustomDD() {
-  const inp = document.getElementById('dd-input');
+  // Legacy — dipanggil dari luar jika ada, tapi sekarang pakai search
+  const inp = document.getElementById('dd-search-inp');
+  if (!inp) return;
   const val = inp.value.trim();
   if (!val) return;
   const exists = state.sessionData.dd.some(d => d.nama.toLowerCase() === val.toLowerCase());
@@ -1210,6 +1540,7 @@ function renderPenunjangStep(body) {
     onNext: () => { state.step = 'dd2'; renderSession(); },
     nextLabel: 'Kembali ke DD & Tetapkan Dx →',
     keyField: 'nama',
+    itemLabel: 'penunjang',
   });
 }
 
