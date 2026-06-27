@@ -913,28 +913,72 @@ function normalizeText(str) {
     .trim();
 }
 
+// STOPWORDS untuk filter token mentah (raw token matching ke item)
+// Kata-kata fungsional Bahasa Indonesia yang tidak bermakna sendiri
+const STOPWORDS = new Set([
+  'ada','apa','apakah','yang','dan','atau','dengan','ini','itu','di','ke','dari',
+  'pada','adalah','untuk','tidak','juga','sudah','telah','akan',
+  'bisa','dapat','oleh','saja','hal','cara','anda','saya','kamu','kami','kita',
+  'nya','kan','lah','lho','sih','ya','yah','dong','deh','tuh','nih',
+  'pernah','belum','mau','ingin','perlu','harus',
+  'sering','jarang','selalu','kadang','biasanya','seringkali',
+]);
+
+// SYNONYM_STOPWORDS: kata-kata yang tidak boleh dipakai sebagai synonym trigger terhadap INPUT
+// (terlalu umum / ambigu jika dicocokkan ke seluruh input user)
+// CATATAN: 'kapan', 'berapa', 'bagaimana', 'mengapa', 'dimana', 'kenapa' SENGAJA
+// TIDAK dimasukkan ke sini, agar input "kapan" tetap match synonym group 'kapan/onset/waktu'
+const SYNONYM_INPUT_STOPWORDS = new Set([
+  'ada','apa','yang','dan','atau','dengan','ini','itu','di','ke','dari',
+  'pada','adalah','untuk','tidak','juga','akan','bisa','dapat',
+  'oleh','saja','hal','cara','anda','saya','kamu','kami','kita',
+  'nya','kan','lah','lho','sih','ya','yah','dong','deh','tuh','nih',
+]);
+
 function matchQuery(input, items) {
   // items: array of { key: string (pertanyaan/nama), ...rest }
-  // returns matched items preserving order of input resolution
   const norm = normalizeText(input);
   if (norm.length < 2) return [];
 
   const results = [];
-  const inputTokens = norm.split(' ').filter(t => t.length > 1);
+  // Token mentah: filter stopwords + panjang minimal 3 (lebih inklusif)
+  const inputTokens = norm.split(' ').filter(t => t.length >= 3 && !STOPWORDS.has(t));
 
   // Collect all synonym groups that match the input
+  // Untuk synonym trigger: izinkan kata pertanyaan (kapan, berapa, bagaimana, dll)
   const matchedGroups = SYNONYM_MAP.filter(group =>
-    group.some(syn => norm.includes(syn) || syn.split(' ').every(w => inputTokens.includes(w)))
+    group.some(syn => {
+      if (syn.includes(' ')) {
+        // Multi-word: cukup cek substring
+        return norm.includes(syn);
+      }
+      // Single-word: minimal 3 karakter, tidak boleh kata fungsional generik
+      if (syn.length < 3 || SYNONYM_INPUT_STOPWORDS.has(syn)) return false;
+      // Cek word-boundary di input: cegah 'mual' match 'mualim'
+      const normPadded = ' ' + norm + ' ';
+      return normPadded.includes(' ' + syn + ' ') || norm === syn || norm.startsWith(syn + ' ') || norm.endsWith(' ' + syn);
+    })
   );
-  const allSynonyms = [...new Set(matchedGroups.flat())];
-  // Also add raw input tokens
-  allSynonyms.push(...inputTokens.filter(t => t.length > 2));
+  // Semua synonym yang akan dicocokkan ke item — tidak perlu filter stopwords ketat
+  // karena multi-word synonym seperti 'berapa lama' harus tetap lolos
+  const allSynonyms = [...new Set(matchedGroups.flat())].filter(s => s.length >= 3 && !SYNONYM_INPUT_STOPWORDS.has(s));
 
   items.forEach(item => {
     const itemNorm = normalizeText(item.key);
-    const hit = allSynonyms.some(syn => itemNorm.includes(syn))
-      || inputTokens.some(t => t.length > 2 && itemNorm.includes(t));
-    if (hit) results.push(item);
+    // Wrap item dengan spasi agar word-boundary matching akurat
+    const itemPadded = ' ' + itemNorm + ' ';
+
+    // Path 1: synonym group match terhadap item
+    const synHit = allSynonyms.some(syn => {
+      if (syn.includes(' ')) return itemNorm.includes(syn); // multi-word: substring OK
+      // Single-word: butuh word boundary di item
+      return itemPadded.includes(' ' + syn + ' ');
+    });
+
+    // Path 2: raw token match dari input ke item (word boundary aware)
+    const tokenHit = inputTokens.some(t => itemPadded.includes(' ' + t + ' '));
+
+    if (synHit || tokenHit) results.push(item);
   });
 
   return results;
@@ -1045,7 +1089,7 @@ function renderFreeTextSection({ body, title, hint, placeholder, allItems, revea
   function specificityScore(input, key) {
     const normInput = normalizeText(input);
     const normKey = normalizeText(key);
-    const inputTokens = normInput.split(' ').filter(t => t.length > 1);
+    const inputTokens = normInput.split(" ").filter(t => t.length >= 3 && !STOPWORDS.has(t));
     let score = 0;
     inputTokens.forEach(t => { if (normKey.includes(t)) score += t.length; });
     // Bonus jika key mengandung input secara keseluruhan
