@@ -8,8 +8,8 @@
 const PATCHES = {
   stemi_anteroseptal: {
     tindakanAwal: {
-      kondisi: "⚠️ Pasien nyeri dada hebat – Dugaan STEMI Akut",
-      deskripsi: "Lakukan Primary Survey dan stabilisasi segera. Nyeri dada kiri menjalar, keringat dingin, onset 3 jam. Waktu adalah otot!",
+      kondisi: "⚠️ Pasien nyeri dada hebat mendadak",
+      deskripsi: "Lakukan Primary Survey dan stabilisasi segera. Nyeri dada kiri menjalar ke lengan, keringat dingin, onset 3 jam. Setiap menit sangat berharga!",
       tindakan: [
         { opsi: "Pasang monitoring EKG 12 lead segera", benar: true },
         { opsi: "Pasang IV line 18G dan ambil darah bersamaan", benar: true },
@@ -26,8 +26,8 @@ const PATCHES = {
   },
   torsio_testis: {
     tindakanAwal: {
-      kondisi: "⚠️ TORSIO TESTIS – Darurat Waktu!",
-      deskripsi: "Nyeri testis mendadak hebat pada remaja. Viabilitas: <6 jam >90% | 6–12 jam ~50% | >12 jam <10%. Setiap menit berarti!",
+      kondisi: "⚠️ Pasien nyeri skrotum mendadak hebat – DARURAT WAKTU!",
+      deskripsi: "Nyeri skrotum mendadak hebat pada remaja. Waktu sangat kritis – setiap menit menentukan. Lakukan stabilisasi dan tatalaksana awal segera!",
       tindakan: [
         { opsi: "Analgetik segera: Ketorolac 30mg IV", benar: true },
         { opsi: "Antiemetik: Ondansetron 4mg IV untuk mual", benar: true },
@@ -57,12 +57,12 @@ const NEW_EMERGENCY_CASES = {
     {
       id: "hipoglikemia_berat",
       judulKasus: "Pasien dewasa dengan riwayat DM ditemukan tidak sadarkan diri, tangan berkeringat dingin dan gemetar",
-      nama: "Hipoglikemia Berat (3B) – GAWAT DARURAT",
+      nama: "Kasus Gawat Darurat – Penurunan Kesadaran (Endokrin)",
       identitas: "Pasien, dewasa, riwayat DM dengan insulin",
       keluhanUtama: "Penurunan kesadaran mendadak",
       tindakanAwal: {
-        kondisi: "⚠️ Pasien tidak sadarkan diri – HIPOGLIKEMIA BERAT",
-        deskripsi: "GDS sangat rendah (<54 mg/dL). Tanda neuroglikopenia berat: kejang, penurunan kesadaran. Jangan beri apapun lewat mulut!",
+        kondisi: "⚠️ Pasien tidak sadarkan diri",
+        deskripsi: "Pasien tidak sadarkan diri dengan riwayat DM. Tanda neuroglikopenia berat: kejang, penurunan kesadaran. Jangan beri apapun lewat mulut!",
         tindakan: [
           { opsi: "Cek GDS segera dengan glucometer", benar: true },
           { opsi: "JANGAN beri apapun per oral (risiko aspirasi)", benar: true },
@@ -156,12 +156,12 @@ const NEW_EMERGENCY_CASES = {
     {
       id: "kad",
       judulKasus: "Pasien DM dewasa datang dengan keluhan mual-muntah hebat, napas seperti Kussmaul, dan kesadaran menurun",
-      nama: "Ketoasidosis Diabetikum (KAD) – GAWAT DARURAT",
+      nama: "Kasus Gawat Darurat – Penurunan Kesadaran + Pernapasan Abnormal (Endokrin)",
       identitas: "Pasien DM, dewasa, dengan mual-muntah dan penurunan kesadaran",
       keluhanUtama: "Mual-muntah, napas cepat-dalam, bau mulut buah",
       tindakanAwal: {
-        kondisi: "⚠️ Pasien somnolen – KETOASIDOSIS DIABETIKUM",
-        deskripsi: "Trias KAD: GDS >250, pH <7.3, keton (+). Pasien napas Kussmaul, napas bau aseton. Stabilisasi segera!",
+        kondisi: "⚠️ Pasien somnolen dengan pernapasan cepat dan dalam",
+        deskripsi: "Pasien DM somnolen dengan napas cepat-dalam (Kussmaul), napas berbau khas, mual-muntah hebat. Stabilisasi segera!",
         tindakan: [
           { opsi: "Pasang IV line besar dan ambil darah (GDS, AGD, elektrolit, keton)", benar: true },
           { opsi: "Infus NaCl 0.9% 1 L dalam 1 jam pertama (15–20 mL/kg/jam)", benar: true },
@@ -266,12 +266,12 @@ const NEW_EMERGENCY_CASES = {
     {
       id: "syok_perdarahan",
       judulKasus: "Pasien dewasa pasca kecelakaan dengan perdarahan aktif di tungkai, akral dingin, dan tekanan darah turun",
-      nama: "Syok Perdarahan – Laserasi A. Femoralis (3B) – GAWAT DARURAT",
+      nama: "Kasus Gawat Darurat – Perdarahan Aktif Post-Trauma (Kardiovaskular)",
       identitas: "Pasien, dewasa, post-trauma dengan perdarahan aktif",
       keluhanUtama: "Perdarahan masif pada paha, tidak sadarkan diri",
       tindakanAwal: {
-        kondisi: "⚠️ Pasien tidak sadarkan diri – SYOK PERDARAHAN MASIF",
-        deskripsi: "Laserasi arteri femoralis dengan perdarahan aktif. Hipotensi berat, takikardi, pucat. Segera hentikan perdarahan!",
+        kondisi: "⚠️ Pasien tidak sadarkan diri dengan perdarahan aktif",
+        deskripsi: "Pasien pasca trauma dengan perdarahan aktif di tungkai. Hipotensi berat, takikardi, pucat. Segera hentikan perdarahan!",
         tindakan: [
           { opsi: "Tekan langsung luka dengan kasa steril (direct pressure)", benar: true },
           { opsi: "Pasang tourniquet proksimal dari luka", benar: true },
@@ -364,12 +364,12 @@ const NEW_EMERGENCY_CASES = {
     {
       id: "efusi_pleura_masif",
       judulKasus: "Pasien dewasa datang dengan sesak napas berat yang progresif, tidak mampu berbaring datar, dan suara napas menghilang di satu sisi",
-      nama: "Efusi Pleura Masif – GAWAT DARURAT",
+      nama: "Kasus Gawat Darurat – Sesak Napas Berat Progresif (Respirasi)",
       identitas: "Pasien dewasa, sesak progresif berat",
       keluhanUtama: "Sesak napas berat mendadak, tidak bisa berbaring",
       tindakanAwal: {
-        kondisi: "⚠️ Pasien sesak berat – EFUSI PLEURA MASIF",
-        deskripsi: "Respiratory distress berat. SpO₂ <90%. Tidak bisa berbaring. Perlu dekompresi segera sebelum anamnesis lengkap.",
+        kondisi: "⚠️ Pasien sesak napas berat, tidak bisa berbaring",
+        deskripsi: "Respiratory distress berat. SpO₂ <90%. Tidak bisa berbaring. Stabilisasi pernapasan segera sebelum anamnesis lengkap.",
         tindakan: [
           { opsi: "O₂ Non-rebreather mask 10–15 L/menit segera", benar: true },
           { opsi: "Posisi semi-Fowler (60–90 derajat)", benar: true },
@@ -462,12 +462,12 @@ const NEW_EMERGENCY_CASES = {
     {
       id: "pneumothorax",
       judulKasus: "Pasien muda datang dengan sesak napas tiba-tiba mendadak, nyeri dada satu sisi, dan trakea terasa tertarik",
-      nama: "Tension Pneumothorax – GAWAT DARURAT",
+      nama: "Kasus Gawat Darurat – Sesak Mendadak + Nyeri Dada (Respirasi)",
       identitas: "Pasien muda, sesak mendadak pasca trauma/spontan",
       keluhanUtama: "Sesak napas mendadak sangat berat, nyeri dada",
       tindakanAwal: {
-        kondisi: "⚠️ Pasien sesak mendadak – TENSION PNEUMOTHORAX",
-        deskripsi: "Sesak berat mendadak. Tidak ada suara napas satu sisi. Trakea terdorong. Hipotensi. JVP meningkat. DARURAT MUTLAK – jangan tunda!",
+        kondisi: "⚠️ Pasien sesak mendadak hebat, nyeri dada satu sisi",
+        deskripsi: "Sesak berat mendadak. Tidak ada suara napas satu sisi. Trakea terdorong. Hipotensi. DARURAT MUTLAK – jangan tunda tatalaksana!",
         tindakan: [
           { opsi: "Needle decompression SEGERA: jarum 14G di ICS 2 MCL sisi kolaps", benar: true },
           { opsi: "O₂ Non-rebreather mask 10–15 L/menit", benar: true },
@@ -562,12 +562,12 @@ const NEW_EMERGENCY_CASES = {
     {
       id: "ruptur_uretra",
       judulKasus: "Pasien laki-laki dewasa pasca trauma selangkangan tidak bisa BAK, kesakitan, dan tampak memar di perineum",
-      nama: "Ruptur Uretra Anterior (3B) – GAWAT DARURAT",
+      nama: "Kasus Gawat Darurat – Retensi Urin Post-Trauma (Genitourinaria)",
       identitas: "Pasien laki-laki dewasa, post-trauma pelvis/straddle injury",
       keluhanUtama: "Tidak bisa kencing, darah di lubang kencing setelah jatuh",
       tindakanAwal: {
-        kondisi: "⚠️ RUPTUR URETRA – JANGAN PASANG KATETER!",
-        deskripsi: "Darah di meatus uretra + tidak bisa BAK setelah trauma. Kontraindikasi absolut kateter uretra! Stabilisasi dan uretrogram dahulu.",
+        kondisi: "⚠️ Pasien tidak bisa BAK pasca trauma, darah di meatus – JANGAN PASANG KATETER!",
+        deskripsi: "Pasien post-trauma tidak bisa BAK, tampak darah di meatus uretra. Kontraindikasi absolut kateter uretra! Stabilisasi dan imaging dahulu.",
         tindakan: [
           { opsi: "JANGAN pasang kateter uretra (KONTRAINDIKASI MUTLAK!)", benar: true },
           { opsi: "Pasang IV line dan stabilisasi hemodinamik", benar: true },

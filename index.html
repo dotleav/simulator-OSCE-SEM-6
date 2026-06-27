@@ -127,7 +127,6 @@
   .emergency-banner .em-title { color: var(--red); font-weight: 700; font-size: 1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
   .emergency-banner p { font-size: 0.88rem; color: #fca5a5; }
   .emergency-option { position: relative; }
-  .emergency-option.lethal::after { content: '⚠️'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); opacity: 0.3; }
 
   /* Death screen */
   #screen-death { background: #0d0000; align-items: center; justify-content: center; text-align: center; padding: 40px; }
@@ -200,7 +199,7 @@
 </div>
 
 <!-- ══════════════════════════════════
-     SCREEN 2: Case List
+     SCREEN 2: Start Screen (random case)
 ══════════════════════════════════ -->
 <div class="screen" id="screen-cases">
   <div class="topbar">
@@ -209,9 +208,18 @@
       <div class="topbar-title" id="cases-title" style="font-weight:700;font-size:0.95rem"></div>
     </div>
   </div>
-  <div class="cases-body">
-    <h3 id="cases-subtitle"></h3>
-    <div class="item-list" id="case-list"></div>
+  <div class="cases-body" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;text-align:center;gap:24px">
+    <div style="font-size:3rem">🎲</div>
+    <div>
+      <div style="font-size:1.2rem;font-weight:700;margin-bottom:8px" id="cases-cat-label"></div>
+      <div style="color:var(--muted);font-size:0.88rem" id="cases-count-label"></div>
+    </div>
+    <p style="color:var(--muted);font-size:0.85rem;max-width:360px;line-height:1.6">
+      Kasus akan dipilih secara acak. Selamat berlatih!
+    </p>
+    <button class="btn-primary" style="font-size:1rem;padding:16px 40px;border-radius:12px" onclick="startRandomCase()">
+      🚀 Mulai Sesi
+    </button>
   </div>
 </div>
 
@@ -345,29 +353,153 @@ function renderCategory() {
 // ══════════════════════════════════
 //  SCREEN: CASE LIST
 // ══════════════════════════════════
+//  SCREEN: CASE START (random)
+// ══════════════════════════════════
 function openCategory(catId) {
   state.currentCategory = catId;
   const cat = OSCE_DATA.categories.find(c => c.id === catId);
+  const cases = OSCE_DATA.cases[catId] || [];
   document.getElementById('cases-title').textContent = cat.label;
-  document.getElementById('cases-subtitle').textContent = 'Pilih kasus untuk memulai sesi';
-  
-  const cases = shuffleArray(OSCE_DATA.cases[catId] || []);
-  const list = document.getElementById('case-list');
-  list.innerHTML = '';
-  
-  cases.forEach(c => {
-    const div = document.createElement('div');
-    div.className = 'case-card';
-    const em = isEmergency(c);
-    const displayTitle = c.judulKasus || c.keluhanUtama || c.identitas || 'Kasus';
-    div.innerHTML = `
-      <h3 style="font-size:0.92rem;line-height:1.45">${displayTitle}${em ? ' <span class="badge badge-emergency">⚠ GAWAT DARURAT</span>' : ''}</h3>
-    `;
-    div.onclick = () => startSession(c);
-    list.appendChild(div);
-  });
-  
+  document.getElementById('cases-cat-label').textContent = cat.label;
+  document.getElementById('cases-count-label').textContent = cases.length + ' kasus tersedia';
+  // Reset last played so we can track for non-repeat
+  if (!state.playedCases) state.playedCases = {};
+  if (!state.playedCases[catId]) state.playedCases[catId] = new Set();
   goTo('cases');
+}
+
+function startRandomCase() {
+  const catId = state.currentCategory;
+  const allCases = OSCE_DATA.cases[catId] || [];
+  if (!state.playedCases) state.playedCases = {};
+  if (!state.playedCases[catId]) state.playedCases[catId] = new Set();
+  
+  // Pick from unplayed first; if all played, reset
+  let pool = allCases.filter(c => !state.playedCases[catId].has(c.id));
+  if (pool.length === 0) {
+    state.playedCases[catId] = new Set();
+    pool = allCases;
+  }
+  
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  state.playedCases[catId].add(picked.id);
+  startSession(picked);
+}
+
+// ══════════════════════════════════
+//  ANAMNESIS ORDER BUILDER
+//  Ordered: RPS → RPD → RPK → Lifestyle
+//  Flat list — no category labels shown
+// ══════════════════════════════════
+function buildAnamnesisOrder(c) {
+  const sig = (c.anamnesis?.signifikan || []).map(q => ({ ...q, isSig: true }));
+  const nonSig = (c.anamnesis?.nonSignifikan || []).map(q => ({ ...q, isSig: false }));
+  const existing = [...sig, ...nonSig];
+  const existingKeys = new Set(existing.map(q => q.pertanyaan.toLowerCase().trim()));
+
+  // Universal RPS questions (onset, character, severity, radiation, associated symptoms)
+  const RPS_UNIVERSAL = [
+    "Sudah berapa lama keluhan ini berlangsung?",
+    "Bagaimana awal mula keluhan ini muncul?",
+    "Apakah keluhan muncul tiba-tiba atau perlahan?",
+    "Seberapa berat keluhan yang dirasakan (skala 1–10)?",
+    "Apakah keluhan menyebar atau menjalar ke tempat lain?",
+    "Apakah ada yang membuat keluhan membaik?",
+    "Apakah ada yang membuat keluhan memburuk?",
+    "Apakah keluhan terus-menerus atau hilang timbul?",
+    "Apakah ada demam?",
+    "Apakah ada mual atau muntah?",
+    "Apakah ada perubahan nafsu makan?",
+    "Apakah ada penurunan berat badan belakangan ini?",
+    "Apakah ada sesak napas?",
+    "Apakah ada nyeri dada?",
+    "Apakah ada batuk?",
+    "Apakah ada perubahan BAK (frekuensi, warna, nyeri)?",
+    "Apakah ada perubahan BAB?",
+    "Apakah ada keluhan lain yang menyertai?",
+  ];
+
+  // Universal RPD questions
+  const RPD_UNIVERSAL = [
+    "Apakah pernah mengalami keluhan serupa sebelumnya?",
+    "Apakah ada riwayat penyakit sebelumnya (DM, hipertensi, jantung, paru)?",
+    "Apakah pernah dirawat di rumah sakit sebelumnya?",
+    "Apakah pernah menjalani operasi sebelumnya?",
+    "Apakah sedang mengonsumsi obat-obatan rutin saat ini?",
+    "Apakah ada alergi obat atau makanan?",
+    "Apakah pernah mendapat transfusi darah?",
+  ];
+
+  // Universal RPK questions
+  const RPK_UNIVERSAL = [
+    "Apakah ada anggota keluarga dengan keluhan serupa?",
+    "Apakah ada riwayat penyakit keturunan di keluarga (DM, hipertensi, jantung, kanker)?",
+    "Apakah ada riwayat penyakit menular di keluarga (TB, hepatitis)?",
+  ];
+
+  // Universal Lifestyle questions
+  const LIFESTYLE_UNIVERSAL = [
+    "Apakah merokok? Berapa bungkus per hari dan sudah berapa lama?",
+    "Apakah ada konsumsi alkohol?",
+    "Bagaimana pola makan sehari-hari?",
+    "Apakah rutin berolahraga?",
+    "Bagaimana pola tidur Anda?",
+    "Apakah ada penggunaan narkoba atau zat psikoaktif?",
+    "Bagaimana kondisi lingkungan tempat tinggal (ventilasi, sanitasi)?",
+    "Apakah ada riwayat perjalanan ke luar kota atau daerah endemik?",
+    "Apa pekerjaan Anda dan adakah paparan bahan berbahaya di tempat kerja?",
+    "Bagaimana kondisi stres atau tekanan psikologis belakangan ini?",
+  ];
+
+  // Helper: wrap universal question as nonSignifikan item if not already present
+  function makeUniversal(pertanyaan) {
+    return { pertanyaan, temuan: "Dalam batas normal / tidak ada keluhan berarti", isSig: false };
+  }
+
+  // Merge: existing questions take priority (preserve their temuan & isSig)
+  // Universal questions fill the gaps, deduplicated by approximate key match
+  function mergeSection(universalList) {
+    const result = [];
+    universalList.forEach(q => {
+      const key = q.toLowerCase().trim();
+      // Check if existing already covers this topic (rough keyword match)
+      const covered = existingKeys.has(key);
+      if (!covered) {
+        result.push(makeUniversal(q));
+      }
+    });
+    return result;
+  }
+
+  // Build ordered sections: RPS sig first, then RPS universal gaps, then RPD, RPK, Lifestyle
+  const rpsSig = sig; // case-specific significant findings go first
+  const rpsNonSig = nonSig; // case-specific non-sig findings
+
+  // Deduplicate universal against ALL existing (sig + nonSig)
+  const rpsUniversalFill = mergeSection(RPS_UNIVERSAL);
+  const rpdUniversalFill = mergeSection(RPD_UNIVERSAL);
+  const rpkUniversalFill = mergeSection(RPK_UNIVERSAL);
+  const lifestyleUniversalFill = mergeSection(LIFESTYLE_UNIVERSAL);
+
+  // Final flat order: [existing RPS-like sig] + [existing nonSig] + [universal RPS fill] + [RPD fill] + [RPK fill] + [lifestyle fill]
+  // We interleave existing naturally then append universal fills in order
+  const ordered = [
+    ...rpsSig,
+    ...rpsNonSig,
+    ...rpsUniversalFill,
+    ...rpdUniversalFill,
+    ...rpkUniversalFill,
+    ...lifestyleUniversalFill,
+  ];
+
+  // Deduplicate by pertanyaan key (safety net)
+  const seen = new Set();
+  return ordered.filter(q => {
+    const k = q.pertanyaan.toLowerCase().trim();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 // ══════════════════════════════════
@@ -376,6 +508,25 @@ function openCategory(catId) {
 function startSession(c) {
   state.currentCase = c;
   state.step = isEmergency(c) ? 'emergency' : 'anamnesis';
+  // Build comprehensive ordered anamnesis: RPS -> RPD -> RPK -> Lifestyle
+  const anamOrder = buildAnamnesisOrder(c);
+
+  const pf = c.pemeriksaanFisik || {};
+  const pfOrder = {};
+  ['vitalSign','inspeksiKepala','inspeksiLeher','inspeksiThorax','inspeksiAbdomen','inspeksiEkstremitas','signKhas','distraksi'].forEach(k => {
+    pfOrder[k] = [...(pf[k] || [])]; // keep original order for PF groups (no shuffle needed)
+  });
+
+  const pj = c.penunjang || {};
+  const pjOrder = {};
+  ['standardAwal','khas','distraksi'].forEach(k => {
+    pjOrder[k] = [...(pj[k] || [])];
+  });
+
+  const emOrder = shuffleArray([...(c.tindakanAwal?.tindakan || [])]);
+  const talOrder = shuffleArray([...(c.tatalaksana || [])]);
+  const eduOrder = shuffleArray([...(c.edukasi || [])]);
+
   state.sessionData = {
     emergencyDone: false,
     emergencySelections: [],
@@ -385,6 +536,13 @@ function startSession(c) {
     dd: (c.dd || []).map(d => ({ nama: d, status: 'none' })),
     tatalaksana: [],
     edukasi: [],
+    // Stable shuffled orders
+    anamOrder,
+    pfOrder,
+    pjOrder,
+    emOrder,
+    talOrder,
+    eduOrder,
   };
   state.significantTotal = computeSignificantTotal(c);
   state.significantFound = 0;
@@ -471,7 +629,7 @@ function renderEmergencyStep(body) {
   const banner = document.createElement('div');
   banner.className = 'emergency-banner';
   banner.innerHTML = `
-    <div class="em-title">⚠️ ${em.kondisi || 'Pasien dalam kondisi kritis!'}</div>
+    <div class="em-title">${em.kondisi || '⚠️ Pasien dalam kondisi kritis!'}</div>
     <p>${em.deskripsi || 'Lakukan tindakan awal sebelum melanjutkan anamnesis.'}</p>
   `;
   body.appendChild(banner);
@@ -486,14 +644,13 @@ function renderEmergencyStep(body) {
   optList.className = 'option-list';
   optList.id = 'emergency-opts';
   
-  const options = shuffleArray(em.tindakan || []);
+  const options = state.sessionData.emOrder.length ? state.sessionData.emOrder : shuffleArray(em.tindakan || []);
   const selected = state.sessionData.emergencySelections;
   let evaluated = state.sessionData.emergencyDone;
   
   options.forEach((opt, i) => {
     const btn = document.createElement('button');
     btn.className = 'option-btn emergency-option';
-    if (opt.mematikan) btn.classList.add('lethal');
     btn.textContent = opt.opsi;
     btn.dataset.idx = i;
     
@@ -588,21 +745,14 @@ function renderEmergencyStep(body) {
 // ══════════════════════════════════
 function renderAnamnesisStep(body) {
   const c = state.currentCase;
-  const anam = c.anamnesis || {};
-  const sig = anam.signifikan || [];
-  const nonSig = anam.nonSignifikan || [];
   
   const header = document.createElement('div');
   header.className = 'section-header';
   header.innerHTML = `Anamnesis <span>Klik untuk menggali informasi</span>`;
   body.appendChild(header);
   
-  // Combine and shuffle, keep signifikan vs non separate for tracking
-  const allQuestions = [
-    ...sig.map(q => ({ ...q, isSig: true })),
-    ...nonSig.map(q => ({ ...q, isSig: false })),
-  ];
-  const shuffled = shuffleArray(allQuestions);
+  // Use stable pre-shuffled order from sessionData
+  const shuffled = state.sessionData.anamOrder;
   
   const list = document.createElement('div');
   list.className = 'item-list';
@@ -896,7 +1046,7 @@ function renderTatalaksanaStep(body) {
   const optList = document.createElement('div');
   optList.className = 'option-list';
   
-  const shuffled = shuffleArray(c.tatalaksana || []);
+  const shuffled = state.sessionData.talOrder;
   const sel = state.sessionData.tatalaksana;
   
   shuffled.forEach(opt => {
@@ -941,7 +1091,7 @@ function renderEdukasiStep(body) {
   const optList = document.createElement('div');
   optList.className = 'option-list';
   
-  const shuffled = shuffleArray(c.edukasi || []);
+  const shuffled = state.sessionData.eduOrder;
   const sel = state.sessionData.edukasi;
   
   shuffled.forEach(opt => {

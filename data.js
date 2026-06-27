@@ -11,7 +11,7 @@ const OSCE_DATA = {
       {
         id: "sindrom_metabolik",
         judulKasus: "Tn. Andre, 35 tahun, datang dengan keluhan mudah lelah, sering kencing malam, dan gatal-gatal di selangkangan sejak 6 bulan",
-        nama: "Sindrom Metabolik (4A)",
+        nama: "Kasus 1 – Endokrin",
         identitas: "Andre, 35 tahun, Guru, Piyungan",
         keluhanUtama: "Mudah lelah, BAK malam hari sering, gatal-gatal di seluruh tubuh (terutama selangkangan) sejak 6 bulan",
         anamnesis: {
@@ -113,7 +113,7 @@ const OSCE_DATA = {
       {
         id: "dislipidemia",
         judulKasus: "Tn. Budi, 40 tahun, datang untuk pemeriksaan rutin dengan hasil lab yang disebutkan bermasalah oleh dokter sebelumnya",
-        nama: "Dislipidemia (4)",
+        nama: "Kasus 2 – Endokrin",
         identitas: "Budi, 40 tahun, Karyawan Kantor, Bantul",
         keluhanUtama: "Pusing di tengkuk – sakit kepala dan tengkuk berat",
         anamnesis: {
@@ -203,7 +203,7 @@ const OSCE_DATA = {
       {
         id: "dm_tipe2",
         judulKasus: "Ny. Resti, 40 tahun, datang dengan keluhan sering haus, sering BAK, mudah lelah, dan berat badan turun tanpa sebab jelas",
-        nama: "Diabetes Mellitus Tipe 2 (4)",
+        nama: "Kasus 3 – Endokrin",
         identitas: "Resti, 40 tahun, Perempuan, Pedagang Warung Makan",
         keluhanUtama: "Sering kencing, frekuensi >8x/sehari",
         anamnesis: {
@@ -302,7 +302,7 @@ const OSCE_DATA = {
       {
         id: "hipoglikemia_ringan",
         judulKasus: "Tn. Tono, 50 tahun, datang dengan keluhan tiba-tiba lemas, keringat dingin, dan gemetar saat bekerja",
-        nama: "Hipoglikemia Ringan (4)",
+        nama: "Kasus 4 – Endokrin",
         identitas: "Tono, 50 tahun, Pedagang Sayur, Bantul",
         keluhanUtama: "Merasa lemas tiba-tiba sejak 1 jam yang lalu",
         anamnesis: {
@@ -388,7 +388,7 @@ const OSCE_DATA = {
       {
         id: "hipertiroid",
         judulKasus: "Nn. Siska, 33 tahun, datang dengan keluhan jantung berdebar, tangan gemetar, dan berat badan turun padahal nafsu makan meningkat",
-        nama: "Hipertiroid Suspek Grave's Disease (3A)",
+        nama: "Kasus 5 – Endokrin",
         identitas: "Siska, 33 tahun, Perempuan, Mahasiswi",
         keluhanUtama: "Mudah lelah – gampang capek, badan lemas",
         anamnesis: {
@@ -482,7 +482,7 @@ const OSCE_DATA = {
       {
         id: "stemi_anteroseptal",
         judulKasus: "Tn. Indra, 40 tahun, datang diantar istri dengan keluhan nyeri dada kiri mendadak, menjalar ke lengan kiri, disertai keringat dingin",
-        nama: "STEMI Anteroseptal V1-V4 (3B)",
+        nama: "Kasus 1 – Kardiovaskular",
         identitas: "Pak Indra, 40 tahun; diantar istri (Bu Puspa, 35 tahun)",
         keluhanUtama: "Nyeri dada kiri tiba-tiba, 3 jam yang lalu",
         anamnesis: {
@@ -521,7 +521,7 @@ const OSCE_DATA = {
           inspeksiAbdomen: [{ nama: "Inspeksi Abdomen", temuan: "Dalam batas normal", signifikan: false }],
           inspeksiEkstremitas: [{ nama: "Inspeksi Ekstremitas", temuan: "Akral hangat, tidak ada edema", signifikan: false }],
           signKhas: [
-            { nama: "EKG (12 lead)", temuan: "ST elevasi di V1-V4 (>1 mm) – STEMI ANTEROSEPTAL", signifikan: true }
+            { nama: "EKG (12 lead)", temuan: "ST elevasi di V1-V4 (>1 mm)", signifikan: true }
           ],
           distraksi: [
             { nama: "Pemeriksaan Abdomen", temuan: "Dalam batas normal", signifikan: false },
@@ -532,7 +532,7 @@ const OSCE_DATA = {
           standardAwal: [
             { nama: "Darah Lengkap", temuan: "Eosinofil turun (respons stres)", signifikan: false },
             { nama: "Urinalisis", temuan: "Dalam batas normal", signifikan: false },
-            { nama: "EKG 12 Lead", temuan: "ST elevasi di V1–V4 (STEMI ANTEROSEPTAL) – KONFIRMASI DIAGNOSIS", signifikan: true },
+            { nama: "EKG 12 Lead", temuan: "ST elevasi di V1–V4 – KONFIRMASI DIAGNOSIS", signifikan: true },
             { nama: "USG Jantung (Ekokardiografi)", temuan: "Hipokinesis dinding anterior", signifikan: true },
             { nama: "Rontgen Thorax PA", temuan: "Dalam batas normal", signifikan: false }
           ],
@@ -573,7 +573,7 @@ const OSCE_DATA = {
       {
         id: "chf",
         judulKasus: "Pasien dewasa datang dengan keluhan sesak napas yang semakin memberat, kaki bengkak, dan tidak bisa tidur terlentang",
-        nama: "Congestive Heart Failure / CHF",
+        nama: "Kasus 2 – Kardiovaskular",
         identitas: "Pasien, dewasa, dengan sesak napas progresif",
         keluhanUtama: "Sesak napas saat aktivitas dan saat tidur terlentang",
         anamnesis: {
@@ -666,7 +666,7 @@ const OSCE_DATA = {
       {
         id: "hipertensi_esensial",
         judulKasus: "Pasien dewasa datang dengan keluhan sakit kepala bagian belakang yang sering kambuh, dengan tekanan darah yang selalu tinggi saat diperiksa",
-        nama: "Hipertensi Esensial (4)",
+        nama: "Kasus 3 – Kardiovaskular",
         identitas: "Pasien dewasa dengan tekanan darah tinggi",
         keluhanUtama: "Sakit kepala, pusing, tengkuk berat",
         anamnesis: {
@@ -755,7 +755,7 @@ const OSCE_DATA = {
       {
         id: "svt",
         judulKasus: "Pasien dewasa datang dengan keluhan jantung berdebar sangat kencang secara tiba-tiba, disertai rasa tidak nyaman di dada",
-        nama: "Supraventricular Tachycardia (SVT)",
+        nama: "Kasus 4 – Kardiovaskular",
         identitas: "Pasien dewasa, jantung berdebar mendadak",
         keluhanUtama: "Jantung berdebar mendadak, terasa cepat dan teratur",
         anamnesis: {
@@ -843,7 +843,7 @@ const OSCE_DATA = {
       {
         id: "tb_paru",
         judulKasus: "Tn. Bambang, 30 tahun, datang dengan keluhan batuk berdahak lebih dari 3 minggu, keringat malam, dan berat badan menurun",
-        nama: "Tuberkulosis Paru – Kasus Baru (4A)",
+        nama: "Kasus 1 – Respirasi",
         identitas: "Bambang, 30 tahun, Karyawan Swasta, Papua",
         keluhanUtama: "Batuk berdahak sejak 2 bulan yang lalu",
         anamnesis: {
@@ -931,7 +931,7 @@ const OSCE_DATA = {
       {
         id: "asma",
         judulKasus: "Tn. Deni, 25 tahun, datang dengan keluhan napas berbunyi ngik-ngik, sesak, dan dada terasa berat yang sering kambuh",
-        nama: "Asma Bronkial Intermittent Serangan Akut Sedang (4)",
+        nama: "Kasus 2 – Respirasi",
         identitas: "Deni, 25 tahun, Jogja",
         keluhanUtama: "Sesak napas sejak 20 menit setelah ke rumah teman yang memelihara anjing & kucing",
         anamnesis: {
@@ -1016,7 +1016,7 @@ const OSCE_DATA = {
       {
         id: "ppok",
         judulKasus: "Tn. Yudho, 65 tahun, datang dengan keluhan sesak napas yang semakin berat dalam beberapa hari terakhir, batuk berdahak, dan riwayat merokok lama",
-        nama: "PPOK Persisten Sedang Eksaserbasi Akut (3B)",
+        nama: "Kasus 3 – Respirasi",
         identitas: "Yudho, 65 tahun, Penjaga Toko Kelontong",
         keluhanUtama: "Sesak terus-menerus sejak 5 bulan, memburuk; batuk dahak kental putih 1 minggu",
         anamnesis: {
@@ -1101,7 +1101,7 @@ const OSCE_DATA = {
       {
         id: "pneumonia",
         judulKasus: "Tn. Budi, 40 tahun, datang dengan keluhan demam tinggi, batuk berdahak kuning kehijauan, dan nyeri dada saat bernapas dalam",
-        nama: "Pneumonia Lobaris Basal Sinistra – CAP (4A)",
+        nama: "Kasus 4 – Respirasi",
         identitas: "Budi, 40 tahun, Supir Bus, Godean",
         keluhanUtama: "Batuk berdahak 1 minggu, demam, sesak, dada berat",
         anamnesis: {
@@ -1187,7 +1187,7 @@ const OSCE_DATA = {
       {
         id: "isk_sistitis",
         judulKasus: "Tn. Bobi, 30 tahun, datang dengan keluhan nyeri saat BAK, rasa panas di uretra, dan frekuensi BAK yang meningkat",
-        nama: "ISK – Sistitis (4)",
+        nama: "Kasus 1 – Genitourinaria",
         identitas: "Bobi, 30 tahun, Resepsionis",
         keluhanUtama: "Beser – nyeri saat BAK, kencing sedikit-sedikit",
         anamnesis: {
@@ -1268,7 +1268,7 @@ const OSCE_DATA = {
       {
         id: "ureterolithiasis",
         judulKasus: "Tn. Joko, 35 tahun, datang dengan keluhan nyeri pinggang kiri mendadak seperti ditusuk, menjalar ke selangkangan",
-        nama: "Ureterolithiasis Sinistra / BSK Ureter (3B)",
+        nama: "Kasus 2 – Genitourinaria",
         identitas: "Joko, 35 tahun, Security, Babarsari",
         keluhanUtama: "Nyeri pinggang kiri – nyeri seperti diremas, hilang timbul, menyebar ke punggung",
         anamnesis: {
@@ -1349,7 +1349,7 @@ const OSCE_DATA = {
       {
         id: "torsio_testis",
         judulKasus: "Tn. Budi, 21 tahun, datang dengan keluhan nyeri testis kiri mendadak yang sangat hebat sejak 2 jam lalu",
-        nama: "Torsio Testis (3B) – Gawat Darurat",
+        nama: "Kasus 3 – Genitourinaria",
         identitas: "Budi, 21 tahun, Mahasiswa",
         keluhanUtama: "Nyeri testis kiri mendadak sejak 6 jam yang lalu, saat bangun tidur",
         anamnesis: {
@@ -1430,7 +1430,7 @@ const OSCE_DATA = {
       {
         id: "bph",
         judulKasus: "Tn. Agus, 55 tahun, datang dengan keluhan sulit memulai BAK, pancaran lemah, dan rasa tidak tuntas setelah BAK",
-        nama: "Benign Prostatic Hyperplasia (BPH) (3A)",
+        nama: "Kasus 4 – Genitourinaria",
         identitas: "Agus, 55 tahun, Petani",
         keluhanUtama: "Nyeri saat kencing, frekuensi sering, tidak puas, pipis menetes",
         anamnesis: {
