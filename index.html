@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSCE Simulator – OT</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d2e;
+    --surface2: #252840;
+    --border: #2e3250;
+    --text: #e8eaf0;
+    --muted: #7b829e;
+    --accent: #6c72ff;
+    --accent2: #a78bfa;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --orange: #f97316;
+    --endokrin: #f97316;
+    --kardio: #ef4444;
+    --respirasi: #3b82f6;
+    --genitourinaria: #22c55e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  /* ── screens ── */
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ── Category Screen ── */
+  #screen-category { align-items: center; justify-content: center; padding: 40px 20px; }
+  .logo-title { text-align: center; margin-bottom: 48px; }
+  .logo-title h1 { font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-title h1 span { background: linear-gradient(90deg, #6c72ff, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .logo-title p { color: var(--muted); margin-top: 8px; font-size: 0.95rem; }
+  .cr-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 700px; width: 100%; }
+  .cr-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px 24px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .cr-card:hover { transform: translateY(-3px); border-color: var(--accent); box-shadow: 0 8px 32px rgba(108,114,255,0.15); }
+  .cr-card .icon { font-size: 2.5rem; }
+  .cr-card h2 { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+  .cr-card p { color: var(--muted); font-size: 0.82rem; }
+  .cr-card[data-id="endokrin"] { border-left: 3px solid var(--endokrin); }
+  .cr-card[data-id="kardio"] { border-left: 3px solid var(--kardio); }
+  .cr-card[data-id="respirasi"] { border-left: 3px solid var(--respirasi); }
+  .cr-card[data-id="genitourinaria"] { border-left: 3px solid var(--genitourinaria); }
+
+  /* ── Case List Screen ── */
+  #screen-cases { padding: 0; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 10; }
+  .topbar h2 { font-size: 1rem; font-weight: 700; }
+  .btn-back { background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
+  .btn-back:hover { border-color: var(--accent); color: var(--accent); }
+  .cases-body { padding: 24px; max-width: 800px; margin: 0 auto; width: 100%; }
+  .cases-body h3 { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
+  .case-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; cursor: pointer; transition: all 0.15s; }
+  .case-card:hover { border-color: var(--accent); background: var(--surface2); }
+  .case-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
+  .case-card .meta { color: var(--muted); font-size: 0.83rem; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.72rem; font-weight: 600; margin-left: 8px; }
+  .badge-emergency { background: rgba(239,68,68,0.2); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+
+  /* ── Session Screen ── */
+  #screen-session { padding: 0; flex-direction: column; }
+  .session-topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  .session-topbar .case-title { font-size: 0.95rem; font-weight: 700; }
+  .session-topbar .case-meta { color: var(--muted); font-size: 0.78rem; }
+  .progress-badge { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); padding: 6px 14px; border-radius: 99px; font-size: 0.85rem; font-weight: 700; white-space: nowrap; }
+  .session-body { flex: 1; overflow-y: auto; padding: 20px; max-width: 860px; margin: 0 auto; width: 100%; }
+  .step-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .step-pill { padding: 5px 14px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--border); color: var(--muted); }
+  .step-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .step-pill.done { background: rgba(34,197,94,0.15); color: var(--green); border-color: rgba(34,197,94,0.3); }
+
+  /* Section headers */
+  .section-header { font-size: 1.1rem; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .section-header span { font-size: 0.78rem; color: var(--muted); font-weight: 400; }
+
+  /* keluhan utama box */
+  .keluhan-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .keluhan-box .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .keluhan-box .value { font-size: 0.95rem; }
+  .identitas-box { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+
+  /* Item lists */
+  .item-list { display: flex; flex-direction: column; gap: 8px; }
+  .item-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; text-align: left; color: var(--text); font-size: 0.88rem; transition: all 0.15s; width: 100%; }
+  .item-btn:hover { border-color: var(--accent); background: var(--surface2); }
+  .item-btn.revealed { background: var(--surface2); border-color: var(--border); cursor: default; }
+  .item-btn.revealed .finding { color: var(--accent2); margin-top: 8px; font-size: 0.82rem; }
+  .item-btn.revealed.significant { border-color: var(--green); background: rgba(34,197,94,0.05); }
+  .item-btn.revealed.non-significant { border-color: var(--border); opacity: 0.75; }
+  .item-btn.disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+  /* PF items */
+  .pf-group { margin-bottom: 18px; }
+  .pf-group-label { font-size: 0.72rem; text-transform: uppercase; color: var(--muted); letter-spacing: 0.8px; margin-bottom: 8px; }
+
+  /* DD Selection */
+  .dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+  .dd-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; cursor: pointer; font-size: 0.85rem; text-align: center; transition: all 0.15s; }
+  .dd-chip:hover { border-color: var(--accent); }
+  .dd-chip.selected { background: rgba(108,114,255,0.15); border-color: var(--accent); color: var(--accent2); }
+  .dd-chip.eliminated { background: rgba(239,68,68,0.07); border-color: rgba(239,68,68,0.3); color: var(--red); text-decoration: line-through; opacity: 0.6; }
+  .dd-chip.dx { background: rgba(34,197,94,0.15); border-color: var(--green); color: var(--green); font-weight: 700; }
+
+  /* Tatalaksana / Edukasi */
+  .option-list { display: flex; flex-direction: column; gap: 8px; }
+  .option-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; text-align: left; color: var(--text); font-size: 0.88rem; transition: all 0.15s; }
+  .option-btn:hover { border-color: var(--accent); }
+  .option-btn.selected { background: rgba(108,114,255,0.12); border-color: var(--accent); }
+  .option-btn.correct { background: rgba(34,197,94,0.12); border-color: var(--green); color: #a8ffca; }
+  .option-btn.wrong { background: rgba(239,68,68,0.1); border-color: var(--red); color: #ffa8a8; }
+
+  /* Action buttons */
+  .action-bar { display: flex; gap: 10px; margin-top: 24px; flex-wrap: wrap; }
+  .btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; }
+  .btn-primary:hover { background: #5560f0; }
+  .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 12px 24px; cursor: pointer; font-size: 0.9rem; transition: all 0.15s; }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: var(--red); color: #fff; border: none; border-radius: 10px; padding: 12px 24px; cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+
+  /* Emergency overlay */
+  .emergency-banner { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4); border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+  .emergency-banner .em-title { color: var(--red); font-weight: 700; font-size: 1rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .emergency-banner p { font-size: 0.88rem; color: #fca5a5; }
+  .emergency-option { position: relative; }
+  .emergency-option.lethal::after { content: '⚠️'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); opacity: 0.3; }
+
+  /* Death screen */
+  #screen-death { background: #0d0000; align-items: center; justify-content: center; text-align: center; padding: 40px; }
+  .death-box { max-width: 500px; }
+  .death-box h1 { font-size: 3rem; margin-bottom: 16px; }
+  .death-box p { color: #fca5a5; margin-bottom: 8px; line-height: 1.6; }
+
+  /* Review Screen */
+  #screen-review { padding: 0; }
+  .review-body { padding: 24px; max-width: 860px; margin: 0 auto; }
+  .review-section { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 20px; overflow: hidden; }
+  .review-section-header { background: var(--surface2); padding: 14px 18px; font-weight: 700; font-size: 0.95rem; border-bottom: 1px solid var(--border); }
+  .review-section-body { padding: 16px 18px; }
+  .review-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.87rem; }
+  .review-item:last-child { border-bottom: none; }
+  .review-item .label { color: var(--muted); font-size: 0.78rem; }
+  .review-option { padding: 10px 14px; border-radius: 8px; margin-bottom: 6px; font-size: 0.87rem; }
+  .review-option.correct { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); color: #a8ffca; }
+  .review-option.wrong-selected { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #ffa8a8; }
+  .review-option.missed { background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); color: #fde68a; }
+
+  /* DD review chips */
+  .review-dd-chip { display: inline-block; padding: 4px 12px; border-radius: 99px; font-size: 0.8rem; margin: 3px; }
+  .review-dd-chip.correct-dx { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .review-dd-chip.correct-dd { background: rgba(108,114,255,0.12); color: var(--accent2); border: 1px solid rgba(108,114,255,0.2); }
+  .review-dd-chip.missed-dd { background: rgba(234,179,8,0.08); color: #fde68a; border: 1px solid rgba(234,179,8,0.2); }
+
+  /* Divider */
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* Inline textarea for adding dd */
+  .dd-add-row { display: flex; gap: 8px; margin-top: 12px; }
+  .dd-add-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 10px 14px; font-size: 0.87rem; }
+  .dd-add-row input::placeholder { color: var(--muted); }
+
+  /* DD section label */
+  .dd-label-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .dd-legend { font-size: 0.75rem; padding: 3px 10px; border-radius: 99px; }
+  .dd-legend.selected { background: rgba(108,114,255,0.15); color: var(--accent2); }
+  .dd-legend.eliminated { background: rgba(239,68,68,0.07); color: var(--red); }
+  .dd-legend.dx { background: rgba(34,197,94,0.15); color: var(--green); }
+
+  .sub-section { margin-top: 20px; }
+  .sub-section h4 { font-size: 0.88rem; color: var(--muted); margin-bottom: 10px; }
+
+  /* stabilized message */
+  .stable-msg { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 10px; padding: 14px 16px; color: #a8ffca; font-size: 0.88rem; margin-bottom: 16px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .cr-grid { grid-template-columns: 1fr; }
+    .identitas-box { grid-template-columns: 1fr; }
+    .dd-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     SCREEN 1: Category Selection
+══════════════════════════════════ -->
+<div class="screen active" id="screen-category">
+  <div>
+    <div class="logo-title">
+      <h1>OSCE <span>Simulator</span></h1>
+      <p>Astungkara, Bismillah, Puji Tuhan · OSCE Kita One Shot 🔥</p>
+    </div>
+    <div class="cr-grid" id="cr-grid"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 2: Case List
+══════════════════════════════════ -->
+<div class="screen" id="screen-cases">
+  <div class="topbar">
+    <button class="btn-back" onclick="goTo('category')">← Kembali</button>
+    <div>
+      <div class="topbar-title" id="cases-title" style="font-weight:700;font-size:0.95rem"></div>
+    </div>
+  </div>
+  <div class="cases-body">
+    <h3 id="cases-subtitle"></h3>
+    <div class="item-list" id="case-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 3: Session
+══════════════════════════════════ -->
+<div class="screen" id="screen-session">
+  <div class="session-topbar">
+    <div>
+      <div class="case-title" id="sess-title"></div>
+      <div class="case-meta" id="sess-meta"></div>
+    </div>
+    <div class="progress-badge" id="sess-progress">0%</div>
+  </div>
+  <div class="session-body" id="session-body"></div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 4: Death
+══════════════════════════════════ -->
+<div class="screen" id="screen-death">
+  <div class="death-box">
+    <h1>💀</h1>
+    <h2 style="color:var(--red);font-size:1.6rem;margin-bottom:16px">Pasien Meninggal</h2>
+    <p id="death-msg">Tindakan yang dipilih menyebabkan kematian pasien.</p>
+    <p style="margin-top:8px;color:var(--muted);font-size:0.85rem">Baca kembali protokol tatalaksana gawat darurat dengan seksama.</p>
+    <div style="margin-top:32px">
+      <button class="btn-primary" onclick="goTo('category')">← Kembali ke Beranda</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     SCREEN 5: Review
+══════════════════════════════════ -->
+<div class="screen" id="screen-review">
+  <div class="topbar">
+    <div>
+      <div style="font-weight:700">Ringkasan Sesi</div>
+      <div style="color:var(--muted);font-size:0.78rem" id="review-case-name"></div>
+    </div>
+  </div>
+  <div class="review-body" id="review-body"></div>
+</div>
+
+<script src="data.js"></script>
+<script src="emergency_data.js"></script>
+<script>
+// ══════════════════════════════════
+//  STATE
+// ══════════════════════════════════
+let state = {
+  currentCategory: null,
+  currentCase: null,
+  step: 'emergency', // emergency | anamnesis | pf | dd1 | penunjang | dd2 | tatalaksana | edukasi
+  sessionData: {
+    emergencyDone: false,
+    revealedAnamnesis: new Set(),
+    revealedPF: new Set(),
+    revealedPenunjang: new Set(),
+    dd: [],           // { nama, status: 'selected'|'eliminated'|'dx' }
+    tatalaksana: [],
+    edukasi: [],
+  },
+  significantTotal: 0,
+  significantFound: 0,
+};
+
+// ══════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════
+function goTo(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Is this case a gawat darurat (emergency)?
+function isEmergency(c) {
+  return !!(c.emergency || c.tindakanAwal);
+}
+
+// Compute total significant findings across anamnesis + PF + penunjang
+function computeSignificantTotal(c) {
+  let total = 0;
+  // anamnesis
+  (c.anamnesis?.signifikan || []).forEach(() => total++);
+  // PF
+  const pf = c.pemeriksaanFisik || {};
+  ['vitalSign','inspeksiKepala','inspeksiLeher','inspeksiThorax','inspeksiAbdomen','inspeksiEkstremitas','signKhas'].forEach(k => {
+    (pf[k] || []).forEach(item => { if (item.signifikan) total++; });
+  });
+  // Penunjang
+  const pj = c.penunjang || {};
+  ['standardAwal','khas'].forEach(k => {
+    (pj[k] || []).forEach(item => { if (item.signifikan) total++; });
+  });
+  return total;
+}
+
+function updateProgress() {
+  const pct = state.significantTotal === 0 ? 0 : Math.round((state.significantFound / state.significantTotal) * 100);
+  document.getElementById('sess-progress').textContent = pct + '%';
+}
+
+// ══════════════════════════════════
+//  SCREEN: CATEGORY
+// ══════════════════════════════════
+function renderCategory() {
+  const grid = document.getElementById('cr-grid');
+  grid.innerHTML = '';
+  OSCE_DATA.categories.forEach(cat => {
+    const div = document.createElement('div');
+    div.className = 'cr-card';
+    div.dataset.id = cat.id;
+    div.innerHTML = `<div class="icon">${cat.icon}</div><h2>${cat.label}</h2><p>${(OSCE_DATA.cases[cat.id]||[]).length} kasus</p>`;
+    div.onclick = () => openCategory(cat.id);
+    grid.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════
+//  SCREEN: CASE LIST
+// ══════════════════════════════════
+function openCategory(catId) {
+  state.currentCategory = catId;
+  const cat = OSCE_DATA.categories.find(c => c.id === catId);
+  document.getElementById('cases-title').textContent = cat.label;
+  document.getElementById('cases-subtitle').textContent = 'Pilih kasus untuk memulai sesi';
+  
+  const cases = shuffleArray(OSCE_DATA.cases[catId] || []);
+  const list = document.getElementById('case-list');
+  list.innerHTML = '';
+  
+  cases.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'case-card';
+    const em = isEmergency(c);
+    const displayTitle = c.judulKasus || c.keluhanUtama || c.identitas || 'Kasus';
+    div.innerHTML = `
+      <h3 style="font-size:0.92rem;line-height:1.45">${displayTitle}${em ? ' <span class="badge badge-emergency">⚠ GAWAT DARURAT</span>' : ''}</h3>
+    `;
+    div.onclick = () => startSession(c);
+    list.appendChild(div);
+  });
+  
+  goTo('cases');
+}
+
+// ══════════════════════════════════
+//  SESSION: INIT
+// ══════════════════════════════════
+function startSession(c) {
+  state.currentCase = c;
+  state.step = isEmergency(c) ? 'emergency' : 'anamnesis';
+  state.sessionData = {
+    emergencyDone: false,
+    emergencySelections: [],
+    revealedAnamnesis: new Set(),
+    revealedPF: new Set(),
+    revealedPenunjang: new Set(),
+    dd: (c.dd || []).map(d => ({ nama: d, status: 'none' })),
+    tatalaksana: [],
+    edukasi: [],
+  };
+  state.significantTotal = computeSignificantTotal(c);
+  state.significantFound = 0;
+  
+  document.getElementById('sess-title').textContent = 'Kasus Pasien';
+  document.getElementById('sess-meta').textContent = (c.judulKasus || c.identitas || '').substring(0, 90);
+  updateProgress();
+  
+  renderSession();
+  goTo('session');
+}
+
+// ══════════════════════════════════
+//  SESSION: RENDER DISPATCHER
+// ══════════════════════════════════
+function renderSession() {
+  const body = document.getElementById('session-body');
+  body.innerHTML = '';
+  
+  const c = state.currentCase;
+  
+  // Step nav
+  const steps = isEmergency(c)
+    ? ['emergency','anamnesis','pf','dd1','penunjang','dd2','tatalaksana','edukasi']
+    : ['anamnesis','pf','dd1','penunjang','dd2','tatalaksana','edukasi'];
+  const stepLabels = {
+    emergency: '⚠ Tindakan Awal',
+    anamnesis: 'Anamnesis',
+    pf: 'Pemeriksaan Fisik',
+    dd1: 'DD (Pra-Penunjang)',
+    penunjang: 'Penunjang',
+    dd2: 'DD & Dx Akhir',
+    tatalaksana: 'Tatalaksana',
+    edukasi: 'Edukasi',
+  };
+  
+  const nav = document.createElement('div');
+  nav.className = 'step-nav';
+  steps.forEach(s => {
+    const pill = document.createElement('span');
+    pill.className = 'step-pill';
+    const stepIdx = steps.indexOf(s);
+    const curIdx = steps.indexOf(state.step);
+    if (s === state.step) pill.classList.add('active');
+    else if (stepIdx < curIdx) pill.classList.add('done');
+    pill.textContent = stepLabels[s] || s;
+    nav.appendChild(pill);
+  });
+  body.appendChild(nav);
+  
+  // Keluhan utama always visible
+  if (state.step !== 'emergency') {
+    const kb = document.createElement('div');
+    kb.className = 'keluhan-box';
+    kb.innerHTML = `<div class="label">Keluhan Utama</div><div class="value">${c.keluhanUtama || ''}</div>`;
+    body.appendChild(kb);
+    
+    const ib = document.createElement('div');
+    ib.className = 'identitas-box';
+    ib.innerHTML = `
+      <div class="keluhan-box"><div class="label">Identitas</div><div class="value">${c.identitas || ''}</div></div>
+    `;
+    body.appendChild(ib);
+  }
+  
+  if (state.step === 'emergency') renderEmergencyStep(body);
+  else if (state.step === 'anamnesis') renderAnamnesisStep(body);
+  else if (state.step === 'pf') renderPFStep(body);
+  else if (state.step === 'dd1') renderDDStep(body, false);
+  else if (state.step === 'penunjang') renderPenunjangStep(body);
+  else if (state.step === 'dd2') renderDDStep(body, true);
+  else if (state.step === 'tatalaksana') renderTatalaksanaStep(body);
+  else if (state.step === 'edukasi') renderEdukasiStep(body);
+}
+
+// ══════════════════════════════════
+//  STEP: EMERGENCY
+// ══════════════════════════════════
+function renderEmergencyStep(body) {
+  const c = state.currentCase;
+  const em = c.tindakanAwal || {};
+  
+  // Banner
+  const banner = document.createElement('div');
+  banner.className = 'emergency-banner';
+  banner.innerHTML = `
+    <div class="em-title">⚠️ ${em.kondisi || 'Pasien dalam kondisi kritis!'}</div>
+    <p>${em.deskripsi || 'Lakukan tindakan awal sebelum melanjutkan anamnesis.'}</p>
+  `;
+  body.appendChild(banner);
+  
+  // Tindakan options
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `Pilih Tindakan Awal <span>Boleh pilih lebih dari satu</span>`;
+  body.appendChild(header);
+  
+  const optList = document.createElement('div');
+  optList.className = 'option-list';
+  optList.id = 'emergency-opts';
+  
+  const options = shuffleArray(em.tindakan || []);
+  const selected = state.sessionData.emergencySelections;
+  let evaluated = state.sessionData.emergencyDone;
+  
+  options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn emergency-option';
+    if (opt.mematikan) btn.classList.add('lethal');
+    btn.textContent = opt.opsi;
+    btn.dataset.idx = i;
+    
+    if (evaluated) {
+      const wasSelected = selected.some(s => s === opt.opsi);
+      if (wasSelected) {
+        btn.classList.add(opt.benar ? 'correct' : 'wrong');
+      }
+      btn.disabled = true;
+    }
+    
+    btn.onclick = () => {
+      if (evaluated) return;
+      
+      // LETHAL OPTION
+      if (opt.mematikan) {
+        document.getElementById('death-msg').textContent = opt.pesanMati || 'Tindakan yang dipilih menyebabkan kematian pasien.';
+        goTo('death');
+        return;
+      }
+      
+      if (btn.classList.contains('selected')) {
+        btn.classList.remove('selected');
+        state.sessionData.emergencySelections = selected.filter(s => s !== opt.opsi);
+      } else {
+        btn.classList.add('selected');
+        state.sessionData.emergencySelections.push(opt.opsi);
+      }
+    };
+    
+    optList.appendChild(btn);
+  });
+  
+  body.appendChild(optList);
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  
+  if (!evaluated) {
+    const btnEval = document.createElement('button');
+    btnEval.className = 'btn-primary';
+    btnEval.textContent = 'Evaluasi Tindakan';
+    btnEval.onclick = () => {
+      const sel = state.sessionData.emergencySelections;
+      if (sel.length === 0) { alert('Pilih minimal satu tindakan!'); return; }
+      
+      // Check if any critical/correct action was selected → patient stabilized
+      const correctOpts = (em.tindakan || []).filter(t => t.kritis); // kritis = must pick to stabilize
+      const hasCritical = correctOpts.length > 0;
+      
+      // If no 'kritis' defined, any correct option stabilizes
+      let stabilized = false;
+      if (!hasCritical) {
+        const correctSelected = sel.filter(s => {
+          const opt = (em.tindakan || []).find(t => t.opsi === s);
+          return opt && opt.benar;
+        });
+        stabilized = correctSelected.length > 0;
+      } else {
+        stabilized = correctOpts.every(c => sel.includes(c.opsi));
+      }
+      
+      state.sessionData.emergencyDone = true;
+      state.sessionData.emergencyStabilized = stabilized;
+      evaluated = true;
+      renderSession();
+    };
+    actionBar.appendChild(btnEval);
+  } else {
+    // Show result
+    const stab = state.sessionData.emergencyStabilized;
+    const msg = document.createElement('div');
+    msg.className = stab ? 'stable-msg' : '';
+    msg.style = !stab ? 'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:10px;padding:14px;color:#fca5a5;font-size:0.88rem;' : '';
+    msg.textContent = stab
+      ? '✅ Pasien berhasil distabilisasi! Anamnesis dapat dilanjutkan.'
+      : '⚠️ Pasien belum sepenuhnya stabil. Namun Anda dapat melanjutkan ke anamnesis.';
+    body.appendChild(msg);
+    
+    const btnNext = document.createElement('button');
+    btnNext.className = 'btn-primary';
+    btnNext.textContent = 'Lanjut ke Anamnesis →';
+    btnNext.onclick = () => { state.step = 'anamnesis'; renderSession(); };
+    actionBar.appendChild(btnNext);
+  }
+  
+  body.appendChild(actionBar);
+}
+
+// ══════════════════════════════════
+//  STEP: ANAMNESIS
+// ══════════════════════════════════
+function renderAnamnesisStep(body) {
+  const c = state.currentCase;
+  const anam = c.anamnesis || {};
+  const sig = anam.signifikan || [];
+  const nonSig = anam.nonSignifikan || [];
+  
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `Anamnesis <span>Klik untuk menggali informasi</span>`;
+  body.appendChild(header);
+  
+  // Combine and shuffle, keep signifikan vs non separate for tracking
+  const allQuestions = [
+    ...sig.map(q => ({ ...q, isSig: true })),
+    ...nonSig.map(q => ({ ...q, isSig: false })),
+  ];
+  const shuffled = shuffleArray(allQuestions);
+  
+  const list = document.createElement('div');
+  list.className = 'item-list';
+  
+  shuffled.forEach((q, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'item-btn';
+    const revealed = state.sessionData.revealedAnamnesis.has(q.pertanyaan);
+    
+    if (revealed) {
+      btn.classList.add('revealed', q.isSig ? 'significant' : 'non-significant');
+      btn.innerHTML = `<div style="font-weight:600">${q.pertanyaan}</div><div class="finding">→ ${q.temuan}</div>`;
+    } else {
+      btn.textContent = q.pertanyaan;
+      btn.onclick = () => {
+        state.sessionData.revealedAnamnesis.add(q.pertanyaan);
+        if (q.isSig) state.significantFound++;
+        updateProgress();
+        renderSession();
+      };
+    }
+    
+    list.appendChild(btn);
+  });
+  
+  body.appendChild(list);
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  const btnNext = document.createElement('button');
+  btnNext.className = 'btn-primary';
+  btnNext.textContent = 'Cukup – Lanjut ke PF →';
+  btnNext.onclick = () => { state.step = 'pf'; renderSession(); };
+  actionBar.appendChild(btnNext);
+  body.appendChild(actionBar);
+}
+
+// ══════════════════════════════════
+//  STEP: PEMERIKSAAN FISIK
+// ══════════════════════════════════
+function renderPFStep(body) {
+  const c = state.currentCase;
+  const pf = c.pemeriksaanFisik || {};
+  
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `Pemeriksaan Fisik <span>Klik untuk memeriksa</span>`;
+  body.appendChild(header);
+  
+  const orderedGroups = [
+    { key: 'vitalSign', label: 'Vital Sign' },
+    { key: 'inspeksiKepala', label: 'Inspeksi Kepala' },
+    { key: 'inspeksiLeher', label: 'Inspeksi Leher' },
+    { key: 'inspeksiThorax', label: 'Inspeksi & Auskultasi Thorax' },
+    { key: 'inspeksiAbdomen', label: 'Inspeksi Abdomen' },
+    { key: 'inspeksiEkstremitas', label: 'Inspeksi Ekstremitas' },
+    { key: 'signKhas', label: 'Tanda Khas' },
+    { key: 'distraksi', label: 'Pemeriksaan Lainnya' },
+  ];
+  
+  orderedGroups.forEach(group => {
+    const items = pf[group.key] || [];
+    if (items.length === 0) return;
+    
+    const grpDiv = document.createElement('div');
+    grpDiv.className = 'pf-group';
+    
+    const lbl = document.createElement('div');
+    lbl.className = 'pf-group-label';
+    lbl.textContent = group.label;
+    grpDiv.appendChild(lbl);
+    
+    const list = document.createElement('div');
+    list.className = 'item-list';
+    
+    items.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'item-btn';
+      const revealed = state.sessionData.revealedPF.has(item.nama);
+      
+      if (revealed) {
+        btn.classList.add('revealed', item.signifikan ? 'significant' : 'non-significant');
+        btn.innerHTML = `<div style="font-weight:600">${item.nama}</div><div class="finding">→ ${item.temuan}</div>`;
+      } else {
+        btn.textContent = item.nama;
+        btn.onclick = () => {
+          state.sessionData.revealedPF.add(item.nama);
+          if (item.signifikan) state.significantFound++;
+          updateProgress();
+          renderSession();
+        };
+      }
+      
+      list.appendChild(btn);
+    });
+    
+    grpDiv.appendChild(list);
+    body.appendChild(grpDiv);
+  });
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  const btnNext = document.createElement('button');
+  btnNext.className = 'btn-primary';
+  btnNext.textContent = 'Lanjut ke DD Awal →';
+  btnNext.onclick = () => { state.step = 'dd1'; renderSession(); };
+  actionBar.appendChild(btnNext);
+  body.appendChild(actionBar);
+}
+
+// ══════════════════════════════════
+//  STEP: DD (shared for dd1 and dd2)
+// ══════════════════════════════════
+function renderDDStep(body, isFinal) {
+  const c = state.currentCase;
+  
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = isFinal
+    ? `Diagnosis Diferensial & Diagnosis Kerja <span>Eliminasi, tambahkan, dan tetapkan Dx</span>`
+    : `Diagnosis Diferensial Awal <span>Pilih DD yang mungkin, klik lagi untuk eliminasi</span>`;
+  body.appendChild(header);
+  
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'dd-label-row';
+  legend.innerHTML = `
+    <span class="dd-legend selected">■ Dipilih</span>
+    <span class="dd-legend eliminated">■ Dieliminasi</span>
+    ${isFinal ? '<span class="dd-legend dx">■ Diagnosis Kerja (Dx)</span>' : ''}
+  `;
+  body.appendChild(legend);
+  
+  const grid = document.createElement('div');
+  grid.className = 'dd-grid';
+  
+  state.sessionData.dd.forEach((item, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'dd-chip';
+    if (item.status === 'selected') chip.classList.add('selected');
+    else if (item.status === 'eliminated') chip.classList.add('eliminated');
+    else if (item.status === 'dx') chip.classList.add('dx');
+    chip.textContent = item.nama;
+    
+    chip.onclick = () => {
+      const cur = state.sessionData.dd[idx].status;
+      if (!isFinal) {
+        // dd1: toggle none → selected → eliminated → none
+        if (cur === 'none') state.sessionData.dd[idx].status = 'selected';
+        else if (cur === 'selected') state.sessionData.dd[idx].status = 'eliminated';
+        else state.sessionData.dd[idx].status = 'none';
+      } else {
+        // dd2: none → selected → dx → eliminated → none
+        if (cur === 'none') state.sessionData.dd[idx].status = 'selected';
+        else if (cur === 'selected') state.sessionData.dd[idx].status = 'dx';
+        else if (cur === 'dx') state.sessionData.dd[idx].status = 'eliminated';
+        else state.sessionData.dd[idx].status = 'none';
+      }
+      renderSession();
+    };
+    
+    grid.appendChild(chip);
+  });
+  
+  body.appendChild(grid);
+  
+  // Add custom DD
+  const addRow = document.createElement('div');
+  addRow.className = 'dd-add-row';
+  addRow.innerHTML = `<input id="dd-input" placeholder="Tambah DD lain…"><button class="btn-secondary" onclick="addCustomDD()">Tambah</button>`;
+  body.appendChild(addRow);
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  
+  if (!isFinal) {
+    const btnNext = document.createElement('button');
+    btnNext.className = 'btn-primary';
+    btnNext.textContent = 'Lanjut ke Penunjang →';
+    btnNext.onclick = () => { state.step = 'penunjang'; renderSession(); };
+    actionBar.appendChild(btnNext);
+  } else {
+    const btnNext = document.createElement('button');
+    btnNext.className = 'btn-primary';
+    btnNext.textContent = 'Lanjut ke Tatalaksana →';
+    btnNext.onclick = () => {
+      if (!state.sessionData.dd.some(d => d.status === 'dx')) {
+        alert('Tetapkan minimal satu Diagnosis Kerja (klik chip dua kali sampai hijau)');
+        return;
+      }
+      state.step = 'tatalaksana';
+      renderSession();
+    };
+    actionBar.appendChild(btnNext);
+  }
+  
+  body.appendChild(actionBar);
+}
+
+function addCustomDD() {
+  const inp = document.getElementById('dd-input');
+  const val = inp.value.trim();
+  if (!val) return;
+  const exists = state.sessionData.dd.some(d => d.nama.toLowerCase() === val.toLowerCase());
+  if (!exists) {
+    state.sessionData.dd.push({ nama: val, status: 'none' });
+  }
+  inp.value = '';
+  renderSession();
+}
+
+// ══════════════════════════════════
+//  STEP: PENUNJANG
+// ══════════════════════════════════
+function renderPenunjangStep(body) {
+  const c = state.currentCase;
+  const pj = c.penunjang || {};
+  
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `Pemeriksaan Penunjang <span>Klik untuk memeriksa</span>`;
+  body.appendChild(header);
+  
+  const groups = [
+    { key: 'standardAwal', label: 'Pemeriksaan Standar' },
+    { key: 'khas', label: 'Pemeriksaan Khas' },
+    { key: 'distraksi', label: 'Pemeriksaan Lainnya' },
+  ];
+  
+  groups.forEach(group => {
+    const items = pj[group.key] || [];
+    if (items.length === 0) return;
+    
+    const grpDiv = document.createElement('div');
+    grpDiv.className = 'pf-group';
+    
+    const lbl = document.createElement('div');
+    lbl.className = 'pf-group-label';
+    lbl.textContent = group.label;
+    grpDiv.appendChild(lbl);
+    
+    const list = document.createElement('div');
+    list.className = 'item-list';
+    
+    items.forEach(item => {
+      const btn = document.createElement('button');
+      btn.className = 'item-btn';
+      const revealed = state.sessionData.revealedPenunjang.has(item.nama);
+      
+      if (revealed) {
+        btn.classList.add('revealed', item.signifikan ? 'significant' : 'non-significant');
+        btn.innerHTML = `<div style="font-weight:600">${item.nama}</div><div class="finding">→ ${item.temuan}</div>`;
+      } else {
+        btn.textContent = item.nama;
+        btn.onclick = () => {
+          state.sessionData.revealedPenunjang.add(item.nama);
+          if (item.signifikan) state.significantFound++;
+          updateProgress();
+          renderSession();
+        };
+      }
+      
+      list.appendChild(btn);
+    });
+    
+    grpDiv.appendChild(list);
+    body.appendChild(grpDiv);
+  });
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  const btnNext = document.createElement('button');
+  btnNext.className = 'btn-primary';
+  btnNext.textContent = 'Kembali ke DD & Tetapkan Dx →';
+  btnNext.onclick = () => { state.step = 'dd2'; renderSession(); };
+  actionBar.appendChild(btnNext);
+  body.appendChild(actionBar);
+}
+
+// ══════════════════════════════════
+//  STEP: TATALAKSANA
+// ══════════════════════════════════
+function renderTatalaksanaStep(body) {
+  const c = state.currentCase;
+  
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `Tatalaksana <span>Pilih semua yang tepat</span>`;
+  body.appendChild(header);
+  
+  const optList = document.createElement('div');
+  optList.className = 'option-list';
+  
+  const shuffled = shuffleArray(c.tatalaksana || []);
+  const sel = state.sessionData.tatalaksana;
+  
+  shuffled.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = opt.opsi;
+    if (sel.includes(opt.opsi)) btn.classList.add('selected');
+    btn.onclick = () => {
+      if (sel.includes(opt.opsi)) {
+        state.sessionData.tatalaksana = sel.filter(s => s !== opt.opsi);
+      } else {
+        state.sessionData.tatalaksana.push(opt.opsi);
+      }
+      renderSession();
+    };
+    optList.appendChild(btn);
+  });
+  
+  body.appendChild(optList);
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  const btnNext = document.createElement('button');
+  btnNext.className = 'btn-primary';
+  btnNext.textContent = 'Lanjut ke Edukasi →';
+  btnNext.onclick = () => { state.step = 'edukasi'; renderSession(); };
+  actionBar.appendChild(btnNext);
+  body.appendChild(actionBar);
+}
+
+// ══════════════════════════════════
+//  STEP: EDUKASI
+// ══════════════════════════════════
+function renderEdukasiStep(body) {
+  const c = state.currentCase;
+  
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `Edukasi Pasien <span>Pilih semua yang tepat</span>`;
+  body.appendChild(header);
+  
+  const optList = document.createElement('div');
+  optList.className = 'option-list';
+  
+  const shuffled = shuffleArray(c.edukasi || []);
+  const sel = state.sessionData.edukasi;
+  
+  shuffled.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    btn.textContent = opt.opsi;
+    if (sel.includes(opt.opsi)) btn.classList.add('selected');
+    btn.onclick = () => {
+      if (sel.includes(opt.opsi)) {
+        state.sessionData.edukasi = sel.filter(s => s !== opt.opsi);
+      } else {
+        state.sessionData.edukasi.push(opt.opsi);
+      }
+      renderSession();
+    };
+    optList.appendChild(btn);
+  });
+  
+  body.appendChild(optList);
+  
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  const btnClose = document.createElement('button');
+  btnClose.className = 'btn-danger';
+  btnClose.textContent = '🔒 Tutup Sesi & Lihat Ringkasan';
+  btnClose.onclick = () => renderReview();
+  actionBar.appendChild(btnClose);
+  body.appendChild(actionBar);
+}
+
+// ══════════════════════════════════
+//  SCREEN: REVIEW
+// ══════════════════════════════════
+function renderReview() {
+  const c = state.currentCase;
+  const sd = state.sessionData;
+  
+  document.getElementById('review-case-name').textContent = c.nama;
+  
+  const body = document.getElementById('review-body');
+  body.innerHTML = '';
+  
+  // ── Anamnesis
+  const anamSec = makeReviewSection('📋 Anamnesis');
+  const allAnam = [...(c.anamnesis?.signifikan||[]), ...(c.anamnesis?.nonSignifikan||[])];
+  const sigAnam = c.anamnesis?.signifikan || [];
+  
+  sigAnam.forEach(q => {
+    const revealed = sd.revealedAnamnesis.has(q.pertanyaan);
+    const div = document.createElement('div');
+    div.className = 'review-item';
+    div.innerHTML = `
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div><span style="color:var(--text);font-size:0.87rem">${q.pertanyaan}</span></div>
+        <span style="font-size:0.75rem;${revealed ? 'color:var(--green)' : 'color:var(--red)'};">${revealed ? '✓ Ditanya' : '✗ Terlewat'}</span>
+      </div>
+      <div style="color:var(--accent2);font-size:0.82rem;margin-top:4px">→ ${q.temuan}</div>
+    `;
+    anamSec.body.appendChild(div);
+  });
+  body.appendChild(anamSec.el);
+  
+  // ── PF
+  const pfSec = makeReviewSection('🩺 Pemeriksaan Fisik (Temuan Signifikan)');
+  const pf = c.pemeriksaanFisik || {};
+  ['vitalSign','inspeksiKepala','inspeksiLeher','inspeksiThorax','inspeksiAbdomen','inspeksiEkstremitas','signKhas'].forEach(k => {
+    (pf[k]||[]).filter(i=>i.signifikan).forEach(item => {
+      const revealed = sd.revealedPF.has(item.nama);
+      const div = document.createElement('div');
+      div.className = 'review-item';
+      div.innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <span style="font-size:0.87rem">${item.nama}</span>
+          <span style="font-size:0.75rem;${revealed?'color:var(--green)':'color:var(--red)'};">${revealed?'✓ Diperiksa':'✗ Terlewat'}</span>
+        </div>
+        <div style="color:var(--accent2);font-size:0.82rem;margin-top:4px">→ ${item.temuan}</div>
+      `;
+      pfSec.body.appendChild(div);
+    });
+  });
+  body.appendChild(pfSec.el);
+  
+  // ── Penunjang signifikan
+  const pjSec = makeReviewSection('🔬 Penunjang (Temuan Signifikan)');
+  const pj = c.penunjang || {};
+  ['standardAwal','khas'].forEach(k => {
+    (pj[k]||[]).filter(i=>i.signifikan).forEach(item => {
+      const revealed = sd.revealedPenunjang.has(item.nama);
+      const div = document.createElement('div');
+      div.className = 'review-item';
+      div.innerHTML = `
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+          <span style="font-size:0.87rem">${item.nama}</span>
+          <span style="font-size:0.75rem;${revealed?'color:var(--green)':'color:var(--red)'};">${revealed?'✓ Diperiksa':'✗ Terlewat'}</span>
+        </div>
+        <div style="color:var(--accent2);font-size:0.82rem;margin-top:4px">→ ${item.temuan}</div>
+      `;
+      pjSec.body.appendChild(div);
+    });
+  });
+  body.appendChild(pjSec.el);
+  
+  // ── DD & Dx
+  const ddSec = makeReviewSection('🎯 Diagnosis Diferensial & Diagnosis Kerja');
+  const correctDx = c.diagnosisKerja;
+  const correctDD = c.dd || [];
+  
+  const ddWrap = document.createElement('div');
+  ddWrap.style.marginBottom = '8px';
+  ddWrap.innerHTML = '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px">Diagnosis Kerja yang Benar:</div>';
+  const dxChip = document.createElement('span');
+  dxChip.className = 'review-dd-chip correct-dx';
+  dxChip.textContent = '✓ ' + correctDx;
+  ddWrap.appendChild(dxChip);
+  ddSec.body.appendChild(ddWrap);
+  
+  const ddWrap2 = document.createElement('div');
+  ddWrap2.innerHTML = '<div style="font-size:0.75rem;color:var(--muted);margin-top:12px;margin-bottom:8px">DD Referensi:</div>';
+  correctDD.forEach(dd => {
+    const chip = document.createElement('span');
+    chip.className = 'review-dd-chip correct-dd';
+    chip.textContent = dd;
+    ddWrap2.appendChild(chip);
+  });
+  ddSec.body.appendChild(ddWrap2);
+  
+  const ddWrap3 = document.createElement('div');
+  ddWrap3.innerHTML = '<div style="font-size:0.75rem;color:var(--muted);margin-top:12px;margin-bottom:8px">Pilihan Anda:</div>';
+  sd.dd.filter(d => d.status !== 'none').forEach(d => {
+    const chip = document.createElement('span');
+    chip.className = 'review-dd-chip';
+    if (d.status === 'dx') chip.style.cssText = 'background:rgba(34,197,94,0.15);color:var(--green);border:1px solid rgba(34,197,94,0.3);';
+    else if (d.status === 'selected') chip.style.cssText = 'background:rgba(108,114,255,0.12);color:var(--accent2);border:1px solid rgba(108,114,255,0.2);';
+    else chip.style.cssText = 'background:rgba(239,68,68,0.07);color:var(--red);border:1px solid rgba(239,68,68,0.2);text-decoration:line-through;';
+    chip.textContent = (d.status === 'dx' ? '★ ' : '') + d.nama;
+    ddWrap3.appendChild(chip);
+  });
+  ddSec.body.appendChild(ddWrap3);
+  body.appendChild(ddSec.el);
+  
+  // ── Tatalaksana
+  const talSec = makeReviewSection('💊 Tatalaksana');
+  renderOptionReview(talSec.body, c.tatalaksana || [], sd.tatalaksana);
+  body.appendChild(talSec.el);
+  
+  // ── Edukasi
+  const eduSec = makeReviewSection('📚 Edukasi');
+  renderOptionReview(eduSec.body, c.edukasi || [], sd.edukasi);
+  body.appendChild(eduSec.el);
+  
+  // Finish button
+  const finishBar = document.createElement('div');
+  finishBar.className = 'action-bar';
+  finishBar.style.padding = '0 0 32px';
+  
+  const btnAgain = document.createElement('button');
+  btnAgain.className = 'btn-secondary';
+  btnAgain.textContent = '↩ Kasus Lain';
+  btnAgain.onclick = () => openCategory(state.currentCategory);
+  
+  const btnHome = document.createElement('button');
+  btnHome.className = 'btn-primary';
+  btnHome.textContent = '🏠 Selesai – Ke Beranda';
+  btnHome.onclick = () => goTo('category');
+  
+  finishBar.appendChild(btnAgain);
+  finishBar.appendChild(btnHome);
+  body.appendChild(finishBar);
+  
+  goTo('review');
+}
+
+function makeReviewSection(title) {
+  const el = document.createElement('div');
+  el.className = 'review-section';
+  const header = document.createElement('div');
+  header.className = 'review-section-header';
+  header.textContent = title;
+  const bdy = document.createElement('div');
+  bdy.className = 'review-section-body';
+  el.appendChild(header);
+  el.appendChild(bdy);
+  return { el, body: bdy };
+}
+
+function renderOptionReview(container, allOpts, selected) {
+  allOpts.forEach(opt => {
+    const wasSelected = selected.includes(opt.opsi);
+    const div = document.createElement('div');
+    div.className = 'review-option';
+    
+    if (opt.benar && wasSelected) {
+      div.classList.add('correct');
+      div.innerHTML = `✅ ${opt.opsi}`;
+    } else if (!opt.benar && wasSelected) {
+      div.classList.add('wrong-selected');
+      div.innerHTML = `❌ ${opt.opsi}`;
+    } else if (opt.benar && !wasSelected) {
+      div.classList.add('missed');
+      div.innerHTML = `⚠️ ${opt.opsi} <span style="font-size:0.75rem;opacity:0.7">(terlewat)</span>`;
+    } else {
+      div.style.opacity = '0.4';
+      div.style.fontSize = '0.83rem';
+      div.style.padding = '6px 14px';
+      div.textContent = opt.opsi;
+    }
+    
+    container.appendChild(div);
+  });
+}
+
+// ══════════════════════════════════
+//  INIT
+// ══════════════════════════════════
+renderCategory();
+</script>
+</body>
+</html>
