@@ -175,6 +175,23 @@
   /* stabilized message */
   .stable-msg { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); border-radius: 10px; padding: 14px 16px; color: #a8ffca; font-size: 0.88rem; margin-bottom: 16px; }
 
+
+  /* Free-text input mode */
+  .query-input-wrap { display: flex; gap: 8px; margin-bottom: 20px; position: sticky; top: 0; background: var(--bg); padding: 12px 0 8px; z-index: 5; }
+  .query-input { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 12px 16px; font-size: 0.92rem; outline: none; }
+  .query-input:focus { border-color: var(--accent); }
+  .query-input::placeholder { color: var(--muted); }
+  .btn-tanya { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px 20px; cursor: pointer; font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
+  .btn-tanya:hover { background: #5560f0; }
+  .no-match-msg { color: var(--muted); font-size: 0.83rem; padding: 10px 14px; background: var(--surface); border-radius: 8px; border: 1px dashed var(--border); margin-bottom: 6px; }
+  .revealed-list { display: flex; flex-direction: column; gap: 8px; }
+  .revealed-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .revealed-item .q-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+  .revealed-item .q-answer { font-size: 0.9rem; color: var(--text); }
+  .revealed-item.sig { border-color: var(--green); background: rgba(34,197,94,0.05); }
+  .revealed-item.sig .q-answer { color: #a8ffca; }
+  .hint-text { font-size: 0.75rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+
   /* Responsive */
   @media (max-width: 600px) {
     .cr-grid { grid-template-columns: 1fr; }
@@ -740,54 +757,309 @@ function renderEmergencyStep(body) {
   body.appendChild(actionBar);
 }
 
+
+// ══════════════════════════════════
+//  KEYWORD MATCHING ENGINE
+// ══════════════════════════════════
+
+// Sinonim universal: array of [canonical_key, ...synonyms]
+// canonical_key must match substring of pertanyaan/nama (lowercase)
+const SYNONYM_MAP = [
+  // ─ Time / Onset
+  ['kapan','onset','waktu','mulai','sejak','berapa lama','sudah lama','kronologi','awal mula','terjadi','muncul','durasi'],
+  // ─ Character / Quality
+  ['karakter','sifat','seperti apa','bagaimana rasa','kualitas','nyeri seperti','perih','panas','terbakar','ditusuk','ditekan','berdenyut'],
+  // ─ Severity
+  ['berat','parah','skala','seberapa','tingkat keparahan','severity','derajat'],
+  // ─ Location
+  ['lokasi','di mana','tempat','letak','bagian mana'],
+  // ─ Radiation
+  ['menjalar','radiasi','menyebar','penjalaran','radiation'],
+  // ─ Relieving
+  ['membaik','reda','berkurang','lega','meringankan','better','istirahat'],
+  // ─ Aggravating
+  ['memburuk','bertambah','makin parah','memperparah','worse','aktivitas'],
+  // ─ Continuous vs intermittent
+  ['terus','hilang timbul','intermiten','episodik','kambuh','serangan'],
+  // ─ Associated symptoms
+  ['mual','nausea'],
+  ['muntah','vomit','vomiting'],
+  ['demam','fever','panas badan','suhu'],
+  ['sesak','napas','dispnea','dyspnea'],
+  ['batuk','cough'],
+  ['nyeri dada','chest pain','dada sakit'],
+  ['berdebar','palpitasi','jantung berdebar','detak','ritme jantung'],
+  ['lemas','lelah','fatigue','lemah','mudah capek'],
+  ['pusing','vertigo','kepala berputar','kepala ringan'],
+  ['sakit kepala','headache','cephalgia','nyeri kepala'],
+  ['keringat','diaphoresis','berkeringat','schweis'],
+  ['berat badan','bb','berat tubuh','turun berat','naik berat'],
+  ['nafsu makan','napsu makan','selera makan','anoreksia'],
+  ['bak','kencing','urin','urine','berkemih','micturition','buang air kecil','frekuensi kencing'],
+  ['bab','buang air besar','feses','defekasi','berak'],
+  ['gatal','pruritis','pruritus'],
+  ['bengkak','edema','oedem','membengkak'],
+  ['penglihatan','visual','mata','pandangan'],
+  ['pendengaran','telinga','hearing'],
+  // ─ RPD
+  ['riwayat penyakit','riwayat sakit','rpd','sakit sebelumnya','pernah sakit','penyakit dahulu','history of'],
+  ['rawat inap','opname','dirawat','masuk rs','hospitalisasi'],
+  ['operasi','surgery','bedah','tindakan operatif'],
+  ['obat','medikasi','medication','konsumsi obat','minum obat','terapi obat'],
+  ['alergi','allergy','hipersensitif'],
+  ['diabetes','dm','kencing manis','gula darah'],
+  ['hipertensi','darah tinggi','tekanan darah tinggi'],
+  ['jantung','heart','cardiac','kardio'],
+  ['paru','lung','pulmo','pernapasan','respirasi'],
+  ['ginjal','renal','kidney'],
+  ['stroke','cvd','serangan otak'],
+  ['tiroid','thyroid','gondok'],
+  ['transfusi','darah donor'],
+  // ─ RPK
+  ['keluarga','family','rpk','orang tua','ayah','ibu','saudara','kakek','nenek','turunan','herediter','genetik'],
+  ['menular','infeksius','kontak','tb keluarga'],
+  // ─ Social / Lifestyle
+  ['rokok','merokok','tobacco','nikotin','sigaret','smoking'],
+  ['alkohol','minum alkohol','minuman keras'],
+  ['narkoba','napza','narkotika','obat terlarang','drugs'],
+  ['olahraga','exercise','aktivitas fisik','aktifitas'],
+  ['pola makan','diet','makanan','nutrisi','konsumsi makanan'],
+  ['tidur','sleep','istirahat','pola tidur'],
+  ['pekerjaan','kerja','profesi','occupation','job'],
+  ['lingkungan','sanitasi','ventilasi','tinggal'],
+  ['perjalanan','traveling','bepergian','daerah endemik'],
+  ['stres','psikologis','tekanan','mental','emosi'],
+  ['seksual','hubungan seksual','sexual','pasangan'],
+  // ─ Physical Exam — Vital Sign
+  ['tekanan darah','td','blood pressure','bp','hipotensi','hipertensi'],
+  ['nadi','heart rate','hr','pulse','denyut nadi','laju nadi'],
+  ['rr','respiratory rate','laju napas','frekuensi napas','pernapasan'],
+  ['suhu','temperatur','temperature','febris','afebris'],
+  ['spo2','saturasi','oksigen','oxygen saturation'],
+  ['imt','bmi','berat badan','tinggi badan','bb tb','indeks massa'],
+  ['lingkar pinggang','waist','perut','abdominal'],
+  // ─ Physical Exam — Head/Neck
+  ['kepala','head','cranial','skull'],
+  ['mata','eye','ocular','konjungtiva','sklera','pupil'],
+  ['leher','neck','thyroid','tiroid','jvp','vena jugular','kgb leher','kelenjar'],
+  ['trakea','trachea','deviasi'],
+  // ─ Thorax
+  ['thorax','dada','chest','thoraks'],
+  ['auskultasi paru','suara napas','vesikuler','ronki','wheezing','stridor'],
+  ['auskultasi jantung','bunyi jantung','murmur','gallop','s1','s2','s3','s4'],
+  ['perkusi','dullness','sonor','redup'],
+  ['iktus','apex','apeks','pmi'],
+  // ─ Abdomen
+  ['abdomen','perut','abdominal'],
+  ['hepar','liver','hati','hepatomegali'],
+  ['lien','spleen','limpa','splenomegali'],
+  ['nyeri tekan','tenderness','defense','rigiditas','rebound'],
+  ['bising usus','peristaltik','bowel sound'],
+  ['shifting dullness','asites','cairan bebas'],
+  // ─ Extremities
+  ['ekstremitas','extremity','anggota gerak','tungkai','tangan','kaki'],
+  ['edema','bengkak','pitting','non pitting'],
+  ['capillary refill','crrt','pengisian kapiler'],
+  ['refleks','reflex','neurologis','babinski','kernig'],
+  ['akral','akral dingin','akral hangat'],
+  ['clubbing','jari tabuh'],
+  ['sianosis','cyanosis','biru'],
+  // ─ Special signs
+  ['murphy','mcburney','psoas','rovsing','obturator'],
+  ['kernig','brudzinski','meningeal'],
+  ['trousseau','chvostek','hipokalsemia'],
+  ['shifting','pekak'],
+  ['ballottement','ginjal','renal'],
+  ['testis','skrotum','scrotum','orchid'],
+  ['prostat','rectal toucher','colok dubur','rt','dre'],
+  ['pemeriksaan ginekologi','vagina','uterus','ovarium','adneksa'],
+  // ─ Labs
+  ['darah lengkap','dl','cbc','hematologi','hb','hemoglobin','leukosit','trombosit','eritrosit','hematokrit'],
+  ['urinalisis','urin rutin','urine routine','urin lengkap','urinalysis'],
+  ['ekg','ecg','elektrokardiogram','rekam jantung','listrik jantung'],
+  ['usg','ultrasonografi','ultrasound','sonografi'],
+  ['rontgen','xray','x-ray','foto thorax','foto polos','radiologi','rontgen thorax'],
+  ['gds','gula darah sewaktu','blood glucose random'],
+  ['gdp','gula darah puasa','fasting glucose','gula puasa'],
+  ['gd2pp','gula 2 jam','2 jam pp','postprandial'],
+  ['hba1c','hemoglobin a1c','glycated','glikohemoglobin'],
+  ['profil lipid','kolesterol','lipid','ldl','hdl','trigliserida','triglycerid'],
+  ['fungsi tiroid','tsh','ft4','ft3','tiroid'],
+  ['fungsi ginjal','kreatinin','ureum','bun','gfr','egfr'],
+  ['fungsi hati','sgot','sgpt','bilirubin','albumin','liver function'],
+  ['elektrolit','natrium','kalium','klorida','bikarbonat','sodium','potassium','na','k','cl'],
+  ['analisa gas darah','agd','blood gas','ph','pco2','po2','hco3'],
+  ['kultur','culture','sensitivitas','resistensi','antibiogram'],
+  ['bta','sputum','dahak','acid fast','tb test','tcm','gene xpert'],
+  ['psa','prostate specific antigen'],
+  ['ct scan','computed tomography','ct'],
+  ['mri','magnetic resonance'],
+  ['spirometri','spirometry','fev','fvc','fungsi paru'],
+  ['doppler','vaskular','aliran darah'],
+  ['uroflowmetri','uroflowmetry','aliran urin','pancaran'],
+  ['urografi','urethrografi','imaging saluran kemih'],
+  ['troponin','ck-mb','cardiac marker','enzim jantung'],
+  ['d-dimer','fibrinogen','koagulasi','pt','aptt'],
+  ['procalcitonin','pct','crp','protein c reaktif','inflamasi marker'],
+  ['tes fungsi tiroid','tsh','tiroid stimulating'],
+  ['kortisol','adrenal','acth'],
+  ['hormon','estrogen','testosteron','lh','fsh'],
+];
+
+function normalizeText(str) {
+  return str.toLowerCase()
+    .replace(/[^a-z0-9\u00C0-\u024F\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchQuery(input, items) {
+  // items: array of { key: string (pertanyaan/nama), ...rest }
+  // returns matched items preserving order of input resolution
+  const norm = normalizeText(input);
+  if (norm.length < 2) return [];
+
+  const results = [];
+  const inputTokens = norm.split(' ').filter(t => t.length > 1);
+
+  // Collect all synonym groups that match the input
+  const matchedGroups = SYNONYM_MAP.filter(group =>
+    group.some(syn => norm.includes(syn) || syn.split(' ').every(w => inputTokens.includes(w)))
+  );
+  const allSynonyms = [...new Set(matchedGroups.flat())];
+  // Also add raw input tokens
+  allSynonyms.push(...inputTokens.filter(t => t.length > 2));
+
+  items.forEach(item => {
+    const itemNorm = normalizeText(item.key);
+    const hit = allSynonyms.some(syn => itemNorm.includes(syn))
+      || inputTokens.some(t => t.length > 2 && itemNorm.includes(t));
+    if (hit) results.push(item);
+  });
+
+  return results;
+}
+
+// ══════════════════════════════════
+//  FREE-TEXT INPUT RENDERER (shared)
+// ══════════════════════════════════
+function renderFreeTextSection({ body, title, hint, placeholder, allItems, revealedSet, onReveal, onNext, nextLabel, keyField }) {
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  header.innerHTML = `${title} <span>Ketik pertanyaan atau pemeriksaan yang ingin dilakukan</span>`;
+  body.appendChild(header);
+
+  const hintEl = document.createElement('div');
+  hintEl.className = 'hint-text';
+  hintEl.textContent = hint;
+  body.appendChild(hintEl);
+
+  // ── Input bar
+  const wrap = document.createElement('div');
+  wrap.className = 'query-input-wrap';
+  const inp = document.createElement('input');
+  inp.className = 'query-input';
+  inp.type = 'text';
+  inp.placeholder = placeholder;
+  inp.autocomplete = 'off';
+  const btn = document.createElement('button');
+  btn.className = 'btn-tanya';
+  btn.textContent = 'Tanya →';
+  wrap.appendChild(inp);
+  wrap.appendChild(btn);
+  body.appendChild(wrap);
+
+  // ── Revealed results (ordered by when revealed)
+  const revealedListEl = document.createElement('div');
+  revealedListEl.className = 'revealed-list';
+  body.appendChild(revealedListEl);
+
+  // Render already-revealed items in the order they were revealed
+  function rebuildRevealedList() {
+    revealedListEl.innerHTML = '';
+    revealedSet.forEach(key => {
+      const item = allItems.find(i => i[keyField] === key);
+      if (!item) return;
+      const div = document.createElement('div');
+      div.className = 'revealed-item' + (item.signifikan || item.isSig ? ' sig' : '');
+      div.innerHTML = `<div class="q-label">${item[keyField]}</div><div class="q-answer">→ ${item.temuan}</div>`;
+      revealedListEl.appendChild(div);
+    });
+  }
+  rebuildRevealedList();
+
+  // ── Submit handler
+  function submit() {
+    const val = inp.value.trim();
+    if (!val) return;
+
+    const unrevealedItems = allItems.filter(i => !revealedSet.has(i[keyField]));
+    const mapped = unrevealedItems.map(i => ({ ...i, key: i[keyField] }));
+    const matched = matchQuery(val, mapped);
+
+    // Remove old no-match message
+    const old = body.querySelector('.no-match-msg');
+    if (old) old.remove();
+
+    if (matched.length === 0) {
+      const msg = document.createElement('div');
+      msg.className = 'no-match-msg';
+      msg.textContent = `"${val}" — tidak ada temuan yang cocok untuk pertanyaan ini.`;
+      revealedListEl.parentNode.insertBefore(msg, revealedListEl);
+    } else {
+      matched.forEach(item => {
+        revealedSet.add(item[keyField]);
+        if (item.signifikan || item.isSig) {
+          state.significantFound++;
+        }
+        onReveal(item);
+      });
+      updateProgress();
+      rebuildRevealedList();
+    }
+
+    inp.value = '';
+    inp.focus();
+  }
+
+  btn.onclick = submit;
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+
+  // ── Action bar
+  const actionBar = document.createElement('div');
+  actionBar.className = 'action-bar';
+  actionBar.style.marginTop = '24px';
+  const btnNext = document.createElement('button');
+  btnNext.className = 'btn-primary';
+  btnNext.textContent = nextLabel;
+  btnNext.onclick = onNext;
+  actionBar.appendChild(btnNext);
+  body.appendChild(actionBar);
+}
+
 // ══════════════════════════════════
 //  STEP: ANAMNESIS
 // ══════════════════════════════════
 function renderAnamnesisStep(body) {
   const c = state.currentCase;
-  
-  const header = document.createElement('div');
-  header.className = 'section-header';
-  header.innerHTML = `Anamnesis <span>Klik untuk menggali informasi</span>`;
-  body.appendChild(header);
-  
-  // Use stable pre-shuffled order from sessionData
-  const shuffled = state.sessionData.anamOrder;
-  
-  const list = document.createElement('div');
-  list.className = 'item-list';
-  
-  shuffled.forEach((q, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'item-btn';
-    const revealed = state.sessionData.revealedAnamnesis.has(q.pertanyaan);
-    
-    if (revealed) {
-      btn.classList.add('revealed', q.isSig ? 'significant' : 'non-significant');
-      btn.innerHTML = `<div style="font-weight:600">${q.pertanyaan}</div><div class="finding">→ ${q.temuan}</div>`;
-    } else {
-      btn.textContent = q.pertanyaan;
-      btn.onclick = () => {
-        state.sessionData.revealedAnamnesis.add(q.pertanyaan);
-        if (q.isSig) state.significantFound++;
-        updateProgress();
-        renderSession();
-      };
-    }
-    
-    list.appendChild(btn);
+  const allItems = state.sessionData.anamOrder.map(q => ({
+    ...q,
+    key: q.pertanyaan,
+    signifikan: q.isSig,
+  }));
+
+  renderFreeTextSection({
+    body,
+    title: 'Anamnesis',
+    hint: 'Ketik pertanyaan seperti yang Anda tanyakan ke pasien. Contoh: "Kapan nyeri mulai?", "Apakah ada demam?", "Riwayat DM di keluarga?"',
+    placeholder: 'Contoh: sejak kapan, apakah ada mual, riwayat alergi...',
+    allItems,
+    revealedSet: state.sessionData.revealedAnamnesis,
+    onReveal: () => {},
+    onNext: () => { state.step = 'pf'; renderSession(); },
+    nextLabel: 'Cukup – Lanjut ke PF →',
+    keyField: 'pertanyaan',
   });
-  
-  body.appendChild(list);
-  
-  const actionBar = document.createElement('div');
-  actionBar.className = 'action-bar';
-  const btnNext = document.createElement('button');
-  btnNext.className = 'btn-primary';
-  btnNext.textContent = 'Cukup – Lanjut ke PF →';
-  btnNext.onclick = () => { state.step = 'pf'; renderSession(); };
-  actionBar.appendChild(btnNext);
-  body.appendChild(actionBar);
 }
 
 // ══════════════════════════════════
@@ -796,71 +1068,23 @@ function renderAnamnesisStep(body) {
 function renderPFStep(body) {
   const c = state.currentCase;
   const pf = c.pemeriksaanFisik || {};
-  
-  const header = document.createElement('div');
-  header.className = 'section-header';
-  header.innerHTML = `Pemeriksaan Fisik <span>Klik untuk memeriksa</span>`;
-  body.appendChild(header);
-  
-  const orderedGroups = [
-    { key: 'vitalSign', label: 'Vital Sign' },
-    { key: 'inspeksiKepala', label: 'Inspeksi Kepala' },
-    { key: 'inspeksiLeher', label: 'Inspeksi Leher' },
-    { key: 'inspeksiThorax', label: 'Inspeksi & Auskultasi Thorax' },
-    { key: 'inspeksiAbdomen', label: 'Inspeksi Abdomen' },
-    { key: 'inspeksiEkstremitas', label: 'Inspeksi Ekstremitas' },
-    { key: 'signKhas', label: 'Tanda Khas' },
-    { key: 'distraksi', label: 'Pemeriksaan Lainnya' },
-  ];
-  
-  orderedGroups.forEach(group => {
-    const items = pf[group.key] || [];
-    if (items.length === 0) return;
-    
-    const grpDiv = document.createElement('div');
-    grpDiv.className = 'pf-group';
-    
-    const lbl = document.createElement('div');
-    lbl.className = 'pf-group-label';
-    lbl.textContent = group.label;
-    grpDiv.appendChild(lbl);
-    
-    const list = document.createElement('div');
-    list.className = 'item-list';
-    
-    items.forEach(item => {
-      const btn = document.createElement('button');
-      btn.className = 'item-btn';
-      const revealed = state.sessionData.revealedPF.has(item.nama);
-      
-      if (revealed) {
-        btn.classList.add('revealed', item.signifikan ? 'significant' : 'non-significant');
-        btn.innerHTML = `<div style="font-weight:600">${item.nama}</div><div class="finding">→ ${item.temuan}</div>`;
-      } else {
-        btn.textContent = item.nama;
-        btn.onclick = () => {
-          state.sessionData.revealedPF.add(item.nama);
-          if (item.signifikan) state.significantFound++;
-          updateProgress();
-          renderSession();
-        };
-      }
-      
-      list.appendChild(btn);
-    });
-    
-    grpDiv.appendChild(list);
-    body.appendChild(grpDiv);
+  const allItems = [];
+  ['vitalSign','inspeksiKepala','inspeksiLeher','inspeksiThorax','inspeksiAbdomen','inspeksiEkstremitas','signKhas','distraksi'].forEach(k => {
+    (pf[k] || []).forEach(item => allItems.push({ ...item, key: item.nama }));
   });
-  
-  const actionBar = document.createElement('div');
-  actionBar.className = 'action-bar';
-  const btnNext = document.createElement('button');
-  btnNext.className = 'btn-primary';
-  btnNext.textContent = 'Lanjut ke DD Awal →';
-  btnNext.onclick = () => { state.step = 'dd1'; renderSession(); };
-  actionBar.appendChild(btnNext);
-  body.appendChild(actionBar);
+
+  renderFreeTextSection({
+    body,
+    title: 'Pemeriksaan Fisik',
+    hint: 'Ketik pemeriksaan yang ingin dilakukan. Contoh: "tekanan darah", "auskultasi paru", "palpasi abdomen", "refleks patella"',
+    placeholder: 'Contoh: tekanan darah, nadi, inspeksi kepala, auskultasi jantung...',
+    allItems,
+    revealedSet: state.sessionData.revealedPF,
+    onReveal: () => {},
+    onNext: () => { state.step = 'dd1'; renderSession(); },
+    nextLabel: 'Lanjut ke DD Awal →',
+    keyField: 'nama',
+  });
 }
 
 // ══════════════════════════════════
@@ -970,66 +1194,23 @@ function addCustomDD() {
 function renderPenunjangStep(body) {
   const c = state.currentCase;
   const pj = c.penunjang || {};
-  
-  const header = document.createElement('div');
-  header.className = 'section-header';
-  header.innerHTML = `Pemeriksaan Penunjang <span>Klik untuk memeriksa</span>`;
-  body.appendChild(header);
-  
-  const groups = [
-    { key: 'standardAwal', label: 'Pemeriksaan Standar' },
-    { key: 'khas', label: 'Pemeriksaan Khas' },
-    { key: 'distraksi', label: 'Pemeriksaan Lainnya' },
-  ];
-  
-  groups.forEach(group => {
-    const items = pj[group.key] || [];
-    if (items.length === 0) return;
-    
-    const grpDiv = document.createElement('div');
-    grpDiv.className = 'pf-group';
-    
-    const lbl = document.createElement('div');
-    lbl.className = 'pf-group-label';
-    lbl.textContent = group.label;
-    grpDiv.appendChild(lbl);
-    
-    const list = document.createElement('div');
-    list.className = 'item-list';
-    
-    items.forEach(item => {
-      const btn = document.createElement('button');
-      btn.className = 'item-btn';
-      const revealed = state.sessionData.revealedPenunjang.has(item.nama);
-      
-      if (revealed) {
-        btn.classList.add('revealed', item.signifikan ? 'significant' : 'non-significant');
-        btn.innerHTML = `<div style="font-weight:600">${item.nama}</div><div class="finding">→ ${item.temuan}</div>`;
-      } else {
-        btn.textContent = item.nama;
-        btn.onclick = () => {
-          state.sessionData.revealedPenunjang.add(item.nama);
-          if (item.signifikan) state.significantFound++;
-          updateProgress();
-          renderSession();
-        };
-      }
-      
-      list.appendChild(btn);
-    });
-    
-    grpDiv.appendChild(list);
-    body.appendChild(grpDiv);
+  const allItems = [];
+  ['standardAwal','khas','distraksi'].forEach(k => {
+    (pj[k] || []).forEach(item => allItems.push({ ...item, key: item.nama }));
   });
-  
-  const actionBar = document.createElement('div');
-  actionBar.className = 'action-bar';
-  const btnNext = document.createElement('button');
-  btnNext.className = 'btn-primary';
-  btnNext.textContent = 'Kembali ke DD & Tetapkan Dx →';
-  btnNext.onclick = () => { state.step = 'dd2'; renderSession(); };
-  actionBar.appendChild(btnNext);
-  body.appendChild(actionBar);
+
+  renderFreeTextSection({
+    body,
+    title: 'Pemeriksaan Penunjang',
+    hint: 'Ketik pemeriksaan yang ingin diminta. Contoh: "darah lengkap", "EKG", "foto thorax", "gula darah sewaktu", "urinalisis"',
+    placeholder: 'Contoh: darah lengkap, EKG, usg abdomen, profil lipid...',
+    allItems,
+    revealedSet: state.sessionData.revealedPenunjang,
+    onReveal: () => {},
+    onNext: () => { state.step = 'dd2'; renderSession(); },
+    nextLabel: 'Kembali ke DD & Tetapkan Dx →',
+    keyField: 'nama',
+  });
 }
 
 // ══════════════════════════════════
